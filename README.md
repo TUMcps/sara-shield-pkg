@@ -1,93 +1,133 @@
-# safety_demo
+# safety_shield and ROS2 Workspace Setup
 
+This guide will walk you through installing the `sara_shield` library in a separate directory and then setting up and building your ROS 2 (Jazzy) workspace for the `safety_demo` package.
 
+## 1. Install **sara_shield** Library
 
-## Getting started
+The `sara_shield` library must be built and installed into `/opt/safety_shield` (or a directory of your choosing) **outside** of your ROS workspace.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+1. Open a terminal.
+2. Clone the repository into a separate location (e.g. `~/safety_shield_src`):
+   ```bash
+   mkdir -p ~/safety_shield_src && cd ~/safety_shield_src
+   git clone --recurse-submodules git@gitlab.lrz.de:cps-robotics/sara-shield.git
+   cd sara_shield
+   ```
+3. Create a build directory and configure with CMake:
+   ```bash
+   mkdir -p build && cd build
+   cmake .. -DCMAKE_INSTALL_PREFIX=/opt/safety_shield
+   ```
+4. Build with all available cores:
+   ```bash
+   make -j$(nproc)
+   ```
+5. Install (requires sudo):
+   ```bash
+   sudo make install
+   ```
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+> **Note:** You can change `/opt/safety_shield` to any other prefix, but you must export `CMAKE_PREFIX_PATH` accordingly in step 3 of the ROS workspace setup.
 
-## Add your files
+---
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 2. Set Up Your ROS 2 (Jazzy) Workspace
+
+Next, create a new ROS 2 workspace and clone in your `safety_demo` package.
+
+1. Source your ROS 2 Jazzy installation (add to your `.bashrc` if needed):
+   ```bash
+   source /opt/ros/jazzy/setup.bash
+   ```
+
+2. Create and initialize the workspace:
+   ```bash
+   mkdir -p ~/ros2_jazzy_ws/src && cd ~/ros2_jazzy_ws
+   ```
+
+3. Clone your `safety_demo` package into `src`:
+   ```bash
+   cd src
+   git clone git@gitlab.lrz.de:jballetshofer/safety_demo.git
+   cd ..
+   ```
+
+4. **Ensure CMake can find** `sara_shield` (only if you used a custom prefix):
+   ```bash
+   export CMAKE_PREFIX_PATH=/opt/safety_shield:$CMAKE_PREFIX_PATH
+   ```
+
+5. Install ROS dependencies:
+   ```bash
+   rosdep update
+   rosdep install --from-paths src --ignore-src -r -y
+   ```
+
+6. Build the workspace with Colcon:
+   ```bash
+   colcon build --symlink-install
+   ```
+
+7. Source your overlay before running:
+   ```bash
+   source install/setup.bash
+   ```
+
+---
+
+## 3. Usage
+
+### Launch the Safety Demo
+
+```bash
+ros2 launch safety_shield_node safety.launch.py
+```
+
+This will start the safety shield node.
+
+```bash
+ros2 run human_motion_tracker human_motion_tracker
+```
+
+This will start sending human measurements.
+
+```bash
+ros2 topic pub /goal_joint_states sensor_msgs/msg/JointState "{ 
+  header: { stamp: { sec: 0, nanosec: 0 }, frame_id: '' },
+  name: [ 'joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6' ],
+  position: [ 0.5, -0.2, 0.1, 1.0, -0.5, 0.3 ]
+}" --once
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.lrz.de/jballetshofer/safety_demo.git
-git branch -M main
-git push -uf origin main
+
+This will send a goal pose as an example.
+### Run Tests
+
+```bash
+colcon test --packages-select safety_demo
+colcon test-result --verbose
 ```
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](https://gitlab.lrz.de/jballetshofer/safety_demo/-/settings/integrations)
+## 4. Clean Up & Uninstall
 
-## Collaborate with your team
+If you need to remove the installed `sara_shield` library:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+```bash
+sudo rm -rf /opt/safety_shield
+```
 
-## Test and Deploy
+And to clean your ROS workspace:
 
-Use the built-in continuous integration in GitLab.
+```bash
+cd ~/ros2_jazzy_ws
+rm -rf build/ install/ log/
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+---
 
-***
+## 🎉 You're All Set!
 
-# Editing this README
+Enjoy building and testing your safety functions with `sara_shield` and ROS 2 Jazzy. If you run into any issues, please file an issue on the `sara_shield` or `safety_demo` GitLab repo.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
