@@ -1,0 +1,38 @@
+safety_shield_node:
+  ros__parameters:
+    # Timing
+    sample_time: 0.001
+    t_max: 10.0
+
+    # External config files (relative to share/<pkg>/config/)
+    trajectory_config: 'trajectory_parameters_schunk.yaml'
+    robot_config:     'robot_parameters_schunk.yaml'
+    mocap_config:     'mujoco_mocap.yaml'
+
+    # Shield behavior
+    shield_type: "SSM"  # options: "PFL", "SSM", "OFF".
+
+    # Initial robot pose
+    init.pose.x:    0.0
+    init.pose.y:    0.0
+    init.pose.z:    0.0
+    init.pose.roll: 0.0
+    init.pose.pitch: 0.0
+    init.pose.yaw:  0.0
+    init.qpos:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+    # Environment: single table AABB defined by min/max corners
+    environment.table.min:
+      - -1.0
+      - -1.0
+      - -0.1
+    environment.table.max:
+      -  1.0
+      -  1.0
+      -  0.0
