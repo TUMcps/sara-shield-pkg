@@ -92,6 +92,12 @@ ros2 run human_motion_tracker human_motion_tracker
 This will start sending human measurements.
 
 ```bash
+ros2 run simple_goal_publisher simple_goal_publisher
+```
+
+This will start sending goal positions.
+
+```bash
 ros2 topic pub /goal_joint_states sensor_msgs/msg/JointState "{ 
   header: { stamp: { sec: 0, nanosec: 0 }, frame_id: '' },
   name: [ 'joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6' ],
