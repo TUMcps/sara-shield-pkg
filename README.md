@@ -92,6 +92,12 @@ ros2 run human_motion_tracker human_motion_tracker
 This will start sending human measurements.
 
 ```bash
+ros2 launch safety_shield_node rviz.launch.py
+```
+
+This will start rviz.
+
+```bash
 ros2 run simple_goal_publisher simple_goal_publisher
 ```
 
