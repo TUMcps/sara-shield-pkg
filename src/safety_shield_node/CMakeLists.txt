@@ -69,7 +69,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Threads REQUIRED)
 find_package(fmt REQUIRED)                             # For formatting support
@@ -102,7 +106,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   sensor_msgs
+  visualization_msgs
   geometry_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
   ament_index_cpp
 )
 
@@ -126,6 +134,10 @@ install(DIRECTORY launch/
 # --- Install configuration files ---
 install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
+)
+
+install(DIRECTORY rviz/
+  DESTINATION share/${PROJECT_NAME}/rviz
 )
 
 ament_package()
