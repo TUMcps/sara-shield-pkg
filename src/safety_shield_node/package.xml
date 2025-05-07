@@ -10,16 +10,25 @@
   <!-- Build tool -->
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <!-- Build and run dependencies -->
+  <!-- Core dependencies -->
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>Eigen3</depend>
 
-  <!-- Optional: If you export your library as a CMake package -->
+  <!-- For the new publishers/subscribers -->
+  <depend>visualization_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <!-- The Safety Shield library itself -->
   <depend>safety_shield</depend>
 
-  <!-- Export ament metadata -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
   <export>
     <build_type>ament_cmake</build_type>
   </export>
