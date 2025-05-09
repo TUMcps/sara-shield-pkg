@@ -21,6 +21,7 @@ setup(
     entry_points={
     'console_scripts': [
         'simple_goal_publisher = simple_goal_publisher.simple_goal_publisher:main',
+        'simple_goal_publisher_panda = simple_goal_publisher.simple_goal_publisher_panda:main'
     ],
     },
 )
