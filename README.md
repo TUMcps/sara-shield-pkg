@@ -43,39 +43,33 @@ Next, create a new ROS 2 workspace and clone in your `safety_demo` package.
    source /opt/ros/jazzy/setup.bash
    ```
 
-2. Create and initialize the workspace:
+2. Clone your `safety_demo` package:
    ```bash
-   mkdir -p ~/ros2_jazzy_ws/src && cd ~/ros2_jazzy_ws
-   ```
-
-3. Clone your `safety_demo` package into `src`:
-   ```bash
-   cd src
    git clone git@gitlab.lrz.de:jballetshofer/safety_demo.git
-   cd ..
+   cd safety_demo
    ```
-4. add prefix to the installed lib
+3. add prefix to the installed lib
    ```bash
       echo 'export LD_LIBRARY_PATH=/opt/safety_shield/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
       source ~/.bashrc
    ```
-5. **Ensure CMake can find** `sara_shield` (only if you used a custom prefix):
+4. **Ensure CMake can find** `sara_shield` (only if you used a custom prefix):
    ```bash
    export CMAKE_PREFIX_PATH=/opt/safety_shield:$CMAKE_PREFIX_PATH
    ```
 
-6. Install ROS dependencies:
+5. Install ROS dependencies:
    ```bash
    rosdep update
    rosdep install --from-paths src --ignore-src -r -y
    ```
 
-7. Build the workspace with Colcon:
+6. Build the workspace with Colcon:
    ```bash
    colcon build --symlink-install
    ```
 
-8. Source your overlay before running:
+7. Source your overlay before running:
    ```bash
    source install/setup.bash
    ```
