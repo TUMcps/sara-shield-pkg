@@ -10,23 +10,26 @@ The `sara_shield` library must be built and installed into `/opt/safety_shield` 
 2. Clone the repository into a separate location (e.g. `~/safety_shield_src`):
    ```bash
    mkdir -p ~/safety_shield_src && cd ~/safety_shield_src
-   git clone --recurse-submodules git@gitlab.lrz.de:cps-robotics/sara-shield.git
+   git clone --recurse-submodules -b sara_shield_ros_cmake_updates git@gitlab.lrz.de:cps-robotics/sara-shield.git
    cd sara_shield
    ```
-3. Create a build directory and configure with CMake:
+3. add eigen
+   ```bash   
+   export EIGEN3_INCLUDE_DIR="/usr/include/eigen3/eigen-3.4.0"
+   ```
+4. Create a build directory and configure with CMake:
    ```bash
    mkdir -p build && cd build
    cmake .. -DCMAKE_INSTALL_PREFIX=/opt/safety_shield
    ```
-4. Build with all available cores:
+5. Build with all available cores:
    ```bash
    make -j$(nproc)
    ```
-5. Install (requires sudo):
+6. Install (requires sudo):
    ```bash
    sudo make install
    ```
-
 > **Note:** You can change `/opt/safety_shield` to any other prefix, but you must export `CMAKE_PREFIX_PATH` accordingly in step 3 of the ROS workspace setup.
 
 ---
@@ -51,24 +54,28 @@ Next, create a new ROS 2 workspace and clone in your `safety_demo` package.
    git clone git@gitlab.lrz.de:jballetshofer/safety_demo.git
    cd ..
    ```
-
-4. **Ensure CMake can find** `sara_shield` (only if you used a custom prefix):
+4. add prefix to the installed lib
+   ```bash
+      echo 'export LD_LIBRARY_PATH=/opt/safety_shield/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
+      source ~/.bashrc
+   ```
+5. **Ensure CMake can find** `sara_shield` (only if you used a custom prefix):
    ```bash
    export CMAKE_PREFIX_PATH=/opt/safety_shield:$CMAKE_PREFIX_PATH
    ```
 
-5. Install ROS dependencies:
+6. Install ROS dependencies:
    ```bash
    rosdep update
    rosdep install --from-paths src --ignore-src -r -y
    ```
 
-6. Build the workspace with Colcon:
+7. Build the workspace with Colcon:
    ```bash
    colcon build --symlink-install
    ```
 
-7. Source your overlay before running:
+8. Source your overlay before running:
    ```bash
    source install/setup.bash
    ```
