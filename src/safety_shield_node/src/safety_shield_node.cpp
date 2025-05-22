@@ -170,6 +170,12 @@ private:
 
     shield_->humanMeasurement(human_measurement_, t_);
     if (has_new_goal_) {
+      std::ostringstream oss;
+      oss << "New goal received: [";
+      for (size_t i = 0; i < new_goal_.size(); ++i) {
+        oss << new_goal_[i] << (i+1<new_goal_.size()? ", ": "]");
+      }
+      RCLCPP_INFO(this->get_logger(), "%s", oss.str().c_str());
       std::vector<double> zero_vel(new_goal_.size(), 0.0);
       shield_->newLongTermTrajectory(new_goal_, zero_vel);
       has_new_goal_ = false;
