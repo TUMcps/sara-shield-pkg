@@ -1,0 +1,34 @@
+
+x-common: &common
+  image: safety_demo:jazzy
+  network_mode: host
+  ipc: host
+  environment:
+    - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+  tty: true
+  restart: unless-stopped
+
+services:
+  rviz:
+    <<: *common
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/.Xauthority:/root/.Xauthority:ro  #
+    # pass your DISPLAY env through to the container
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=/root/.Xauthority
+      - QT_X11_NO_MITSHM=1  
+    command: ros2 launch safety_shield_node rviz.launch.py
+
+  safety_shield:
+    <<: *common
+    command: ros2 launch safety_shield_node safety.launch.py
+
+  human_tracker:
+    <<: *common
+    command: ros2 run human_motion_tracker human_motion_tracker
+
+  goal_publisher:
+    <<: *common
+    command: ros2 run simple_goal_publisher simple_goal_publisher
