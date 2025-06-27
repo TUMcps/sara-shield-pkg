@@ -10,6 +10,9 @@ class GoalSequencer(Node):
         # hard‐coded list of goals (6 joints each)
         self.goals = [
             [1.0, 0.0, 0.0, 0.3, 0.5, 1.0],
+            [1.2, 0.0, 0.0, 0.5, 0.7, 1.0],
+            [1.5, 0.0, 0.0, 0.7, 0.9, 1.0],
+            [1.0, 0.0, 0.0, 0.3, 0.5, 1.0],
             [1.0, 1.4, 0.0, -0.6, 0.3, 0.0],
             [0.0, 0.5, -0.9, 0.0, 0.0, 0.0],
             [0.0, 1.4, 0.0, 0.0, 0.5, 0.0],
@@ -24,7 +27,7 @@ class GoalSequencer(Node):
         self.goal_pub = self.create_publisher(JointState, 'goal_joint_states', 10)
         # Subscriber to get shield’s desired output
         self.desired_sub = self.create_subscription(JointState,
-                                                    'desired_joint_states',
+                                                    'current_joint_states',
                                                     self.desired_cb, 10)
 
         # Immediately send the first goal
@@ -46,6 +49,10 @@ class GoalSequencer(Node):
         # Compute max absolute error
         errs = [abs(p - g)
                 for p, g in zip(msg.position, self.goals[self.current_idx])]
+        # check if velocity is roughly zero
+        if any(abs(v) > 0.001 for v in msg.velocity):
+            return
+        
         if max(errs) < self.tolerance:
             self.get_logger().info(f'✔ Goal #{self.current_idx} reached (err={max(errs):.3f})')
             # advance
