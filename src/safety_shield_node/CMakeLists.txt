@@ -140,11 +140,26 @@ target_link_libraries(safety_shield_node_hard_break
   Threads::Threads
   fmt::fmt
 )
-
+add_executable(safety_shield_node_hard_break_recover src/safety_shield_node_hard_break_recover.cpp)
+target_include_directories(safety_shield_node_hard_break_recover PRIVATE
+  ${SHIELD_INCLUDE_DIR} ${LTP_INCLUDE_DIR} ${SARA_INCLUDE_DIR}
+)
+ament_target_dependencies(safety_shield_node_hard_break_recover
+  rclcpp sensor_msgs visualization_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs
+  ament_index_cpp ruckig
+)
+target_link_libraries(safety_shield_node_hard_break_recover
+  safety_shield::safety_shield
+  ruckig::ruckig
+  Eigen3::Eigen
+  Threads::Threads
+  fmt::fmt
+)
 # --- Install targets ---
 install(TARGETS
   safety_shield_node
   safety_shield_node_hard_break
+  safety_shield_node_hard_break_recover
   DESTINATION lib/${PROJECT_NAME}
 )
 

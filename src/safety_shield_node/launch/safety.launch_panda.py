@@ -11,7 +11,7 @@ def generate_launch_description():
     # Full paths to all your YAMLs
     traj_cfg  = os.path.join(cfg_dir, 'trajectory_parameters_panda.yaml')
     robot_cfg = os.path.join(cfg_dir, 'robot_parameters_panda.yaml')
-    mocap_cfg = os.path.join(cfg_dir, 'mujoco_mocap.yaml')
+    mocap_cfg = os.path.join(cfg_dir, 'human_reach_TUM_lab.yaml')
     params    = os.path.join(cfg_dir, 'safety_shield_params_panda.yaml')
 
     return LaunchDescription([

@@ -20,8 +20,8 @@ def generate_launch_description():
     # --- the node itself ----------------------------------------------------
     shield_node = Node(
         package='safety_shield_node',
-        executable='safety_shield_node',
-        name='safety_shield_node',
+        executable='safety_shield_node_hard_break_recover',
+        name='safety_shield_node_hard_break_recover',
         output='screen',
         parameters=[
             params,
