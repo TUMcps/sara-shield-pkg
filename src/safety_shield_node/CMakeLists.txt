@@ -79,7 +79,6 @@ find_package(Threads REQUIRED)
 find_package(fmt REQUIRED)                             # For formatting support
 find_package(safety_shield CONFIG REQUIRED)
 find_package(ament_index_cpp REQUIRED)
-find_package(ruckig REQUIRED)
 
 # --- Compute install prefix and include dirs ---
 # safety_shield_DIR points to <prefix>/lib/cmake/safety_shield
@@ -114,52 +113,18 @@ ament_target_dependencies(${PROJECT_NAME}
   tf2_ros
   tf2_geometry_msgs
   ament_index_cpp
-  ruckig
 )
 
 target_link_libraries(${PROJECT_NAME}
   safety_shield::safety_shield
-  ruckig::ruckig
   Eigen3::Eigen
   Threads::Threads
   fmt::fmt
 )
 
-add_executable(safety_shield_node_hard_break src/safety_shield_node_hard_break.cpp)
-target_include_directories(safety_shield_node_hard_break PRIVATE
-  ${SHIELD_INCLUDE_DIR} ${LTP_INCLUDE_DIR} ${SARA_INCLUDE_DIR}
-)
-ament_target_dependencies(safety_shield_node_hard_break
-  rclcpp sensor_msgs visualization_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs
-  ament_index_cpp ruckig
-)
-target_link_libraries(safety_shield_node_hard_break
-  safety_shield::safety_shield
-  ruckig::ruckig
-  Eigen3::Eigen
-  Threads::Threads
-  fmt::fmt
-)
-add_executable(safety_shield_node_hard_break_recover src/safety_shield_node_hard_break_recover.cpp)
-target_include_directories(safety_shield_node_hard_break_recover PRIVATE
-  ${SHIELD_INCLUDE_DIR} ${LTP_INCLUDE_DIR} ${SARA_INCLUDE_DIR}
-)
-ament_target_dependencies(safety_shield_node_hard_break_recover
-  rclcpp sensor_msgs visualization_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs
-  ament_index_cpp ruckig
-)
-target_link_libraries(safety_shield_node_hard_break_recover
-  safety_shield::safety_shield
-  ruckig::ruckig
-  Eigen3::Eigen
-  Threads::Threads
-  fmt::fmt
-)
 # --- Install targets ---
 install(TARGETS
   safety_shield_node
-  safety_shield_node_hard_break
-  safety_shield_node_hard_break_recover
   DESTINATION lib/${PROJECT_NAME}
 )
 
