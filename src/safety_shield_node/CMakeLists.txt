@@ -178,6 +178,11 @@ install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
 )
 install(
+  DIRECTORY urdf/
+  DESTINATION share/${PROJECT_NAME}/urdf
+)
+
+install(
   PROGRAMS
     scripts/state_logger.py
   DESTINATION lib/${PROJECT_NAME}

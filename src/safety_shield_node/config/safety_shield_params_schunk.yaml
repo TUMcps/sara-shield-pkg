@@ -1,0 +1,103 @@
+safety_shield_node:
+  ros__parameters:
+    # Timing
+    sample_time: 0.001
+    t_max: 10.0
+
+    # Shield behavior
+    shield_type: "PFL"  # options: "PFL", "SSM", "OFF".
+
+    # Initial robot pose
+    init.pose.x:    0.0
+    init.pose.y:    0.0
+    init.pose.z:    -0.054
+    init.pose.roll: 0.0
+    init.pose.pitch: 0.0
+    init.pose.yaw:  -1.57079632679489661923
+    init.qpos:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+    # Environment: single table AABB defined by min/max corners
+    environment.table.min:
+      - -1.5
+      - -0.88
+      - -0.254
+    environment.table.max:
+      -  1.05
+      -  1.0
+      -  -0.23
+
+      
+safety_shield_node_hard_break:
+  ros__parameters:
+    # Timing
+    sample_time: 0.001
+    t_max: 10.0
+
+    # Shield behavior
+    shield_type: "PFL"  # options: "PFL", "SSM", "OFF".
+
+    # Initial robot pose !! also change in urdf
+    init.pose.x:    0.0
+    init.pose.y:    0.0
+    init.pose.z:    -0.054
+    init.pose.roll: 0.0
+    init.pose.pitch: 0.0
+    init.pose.yaw:  -1.57079632679489661923
+    init.qpos:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+    # Environment: single table AABB defined by min/max corners
+    environment.table.min:
+      - -1.5
+      - -0.88
+      - -0.254
+    environment.table.max:
+      -  1.05
+      -  1.0
+      -  -0.23
+
+
+safety_shield_node_hard_break_recover:
+  ros__parameters:
+    # Timing
+    sample_time: 0.001
+    t_max: 10.0
+
+    # Shield behavior
+    shield_type: "SSM"  # options: "PFL", "SSM", "OFF".
+
+    # Initial robot pose
+    init.pose.x:    0.0
+    init.pose.y:    0.0
+    init.pose.z:    -0.054
+    init.pose.roll: 0.0
+    init.pose.pitch: 0.0
+    init.pose.yaw:  -1.57079632679489661923
+    init.qpos:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+    # Environment: single table AABB defined by min/max corners
+    environment.table.min:
+      - -1.5
+      - -0.88
+      - -0.254
+    environment.table.max:
+      -  1.05
+      -  1.0
+      -  -0.23

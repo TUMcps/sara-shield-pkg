@@ -130,6 +130,20 @@ private:
       RCLCPP_ERROR(this->get_logger(), "Invalid 'nb_joints' (%d)", nb_joints);
       throw std::runtime_error("nb_joints must be > 0");
     }
+    if (robot_cfg["joint_names"]) {
+      joint_names_ = robot_cfg["joint_names"].as<std::vector<std::string>>();
+      if (joint_names_.size() != static_cast<size_t>(nb_joints)) {
+        RCLCPP_ERROR(this->get_logger(), "Mismatch in number of joint names (%zu) and nb_joints (%d)",
+                      joint_names_.size(), nb_joints);
+        throw std::runtime_error("Mismatch in joint names count");
+      }
+    } else {
+      // Default joint names if not provided
+      joint_names_.resize(nb_joints);
+      for (int i = 0; i < nb_joints; ++i) {
+        joint_names_[i] = "joint" + std::to_string(i + 1);
+      }
+    }
   }
 
   void initializePublishers() {
@@ -287,7 +301,7 @@ private:
     int color_type)
   {
     visualization_msgs::msg::Marker m;
-    m.header.frame_id = "map";
+    m.header.frame_id = "world";
     m.header.stamp = this->get_clock()->now();
     m.ns = "capsules";
     m.id = id;
@@ -308,7 +322,7 @@ private:
     int color_type)
   {
     visualization_msgs::msg::Marker m;
-    m.header.frame_id = "map";
+    m.header.frame_id = "world";
     m.header.stamp = this->get_clock()->now();
     m.ns = "capsules";
     m.id = id;
@@ -349,7 +363,7 @@ private:
       default:
         m.color.r = m.color.g = m.color.b = 0.5f;
     }
-    m.color.a = 0.8f;
+    m.color.a = 0.3f;
   }
 
   // Preallocated messages

@@ -23,7 +23,7 @@
 #include "safety_shield/robot_reach.h"
 #include "safety_shield/config_utils.h"
 #include "safety_shield/trajectory_utils.h"
-
+#include "safety_shield/motion.h"
 using namespace std::chrono_literals;
 
 struct Trajectory {
@@ -161,9 +161,20 @@ class SafetyShieldHardStopNodeRecover : public rclcpp::Node {
         RCLCPP_ERROR(this->get_logger(), "Invalid 'nb_joints' (%d)", nb_joints);
         throw std::runtime_error("nb_joints must be > 0");
       }
-      joint_names_.clear();
-      for (int i = 1; i <= nb_joints; ++i) {
-        joint_names_.push_back("joint" + std::to_string(i));
+       // Joint names — for rviz display
+      if (robot_cfg["joint_names"]) {
+        joint_names_ = robot_cfg["joint_names"].as<std::vector<std::string>>();
+        if (joint_names_.size() != static_cast<size_t>(nb_joints)) {
+          RCLCPP_ERROR(this->get_logger(), "Mismatch in number of joint names (%zu) and nb_joints (%d)",
+                       joint_names_.size(), nb_joints);
+          throw std::runtime_error("Mismatch in joint names count");
+        }
+      } else {
+        // Default joint names if not provided
+        joint_names_.resize(nb_joints);
+        for (int i = 0; i < nb_joints; ++i) {
+          joint_names_[i] = "joint" + std::to_string(i + 1);
+        }
       }
     }
 
@@ -270,8 +281,74 @@ class SafetyShieldHardStopNodeRecover : public rclcpp::Node {
             profile.acc.emplace_back(ddq.begin(),ddq.end());
         }
 
+        //Trajectory test_profile;
+        // test if we can just calculate time points and take the trajectory from there with same steps
+        //std::vector<double> time_points = safety_shield::calcTimePointsForEquidistantIntervals(0, sample_time_ * num_samples, sample_time_*5);
+        // take trajectory at time points
         
-        
+        //int n_time_steps_ = time_points.size();
+        // test_profile.pos.reserve(n_time_steps_);
+        // test_profile.vel.reserve(n_time_steps_);
+        // test_profile.acc.reserve(n_time_steps_);
+        // // fill the trajectory at time points 
+        // test_profile.pos.emplace_back(current_pos_);
+        // test_profile.vel.emplace_back(current_vel_);
+        // test_profile.acc.emplace_back(current_acc_);
+        // for (std::size_t i = 1; i < time_points.size(); ++i) {
+        //     double t1 = time_points[i]-sample_time_; // add sample time as stopping starts at 0.001
+        //     out.trajectory.at_time(t1, qt, dqt, ddqt, sec);
+        //     test_profile.pos.emplace_back(qt.begin(), qt.end());
+        //     test_profile.vel.emplace_back(dqt.begin(), dqt.end());
+        //     test_profile.acc.emplace_back(ddqt.begin(), ddqt.end());
+        // }
+
+        // std::vector<safety_shield::Motion> new_traj(num_samples + 1);
+        // new_traj[0] = safety_shield::Motion(0.0, current_pos_, current_vel_, current_acc_, 0.0);
+        // std::array<double, 6> qt{}, dqt{}, ddqt{};
+        // size_t sec = 0; 
+        // for (std::size_t i = 1; i < time_points.size(); ++i) {
+        //   double t1 = time_points[i]-sample_time_; // add sample time as stopping starts at 0.001
+        //   out.trajectory.at_time(t1, qt, dqt, ddqt, sec);
+        //   // Convert std::array to std::vector
+        //   std::vector<double> q(qt.begin(), qt.end());
+        //   std::vector<double> dq(dqt.begin(), dqt.end());
+        //   std::vector<double> ddq(ddqt.begin(), ddqt.end());
+        //   std::vector<double> dddq(6, 0.0);  // Placeholder
+        //   new_traj[i] = safety_shield::Motion(t1, q, dq, ddq, dddq);
+        // }
+        //bool ok1 = shield_->verify_hard_stop(new_traj, t_);
+
+        // RCLCPP_INFO(this->get_logger(), "Time Points and 6-DOF Motions in ROS2:");
+
+        // for (std::size_t i = 0; i < new_traj.size() && i < time_points.size(); ++i) {
+        //     RCLCPP_INFO(this->get_logger(), "t = %.6f s", time_points[i]);
+
+        //     const auto& angles = new_traj[i].getAngle();
+        //     const auto& velocities = new_traj[i].getVelocity();
+        //     const auto& accelerations = new_traj[i].getAcceleration();
+
+        //     for (std::size_t j = 0; j < 6; ++j) {
+        //         RCLCPP_INFO(this->get_logger(),
+        //             "  Joint %zu | angle: %.6f | velocity: %.6f | acceleration: %.6f",
+        //             j + 1, angles[j], velocities[j], accelerations[j]);
+        //     }
+        // }
+
+                // print trajectory with time points
+        // RCLCPP_INFO(get_logger(), "Trajectory at time points:");
+        // for (size_t i = 0; i < test_profile.pos.size(); ++i) {
+        //     RCLCPP_INFO(get_logger(), "t=%.3f, pos=[%.2f, %.2f, %.2f, %.2f, %.2f, %.2f], "
+        //                              "vel=[%.2f, %.2f, %.2f, %.2f, %.2f, %.2f], "
+        //                              "acc=[%.2f, %.2f, %.2f, %.2f, %.2f, %.2f]",
+        //                 time_points[i], 
+        //                 test_profile.pos[i][0], test_profile.pos[i][1], test_profile.pos[i][2],
+        //                 test_profile.pos[i][3], test_profile.pos[i][4], test_profile.pos[i][5],
+        //                 test_profile.vel[i][0], test_profile.vel[i][1], test_profile.vel[i][2],
+        //                 test_profile.vel[i][3], test_profile.vel[i][4], test_profile.vel[i][5],
+        //                 test_profile.acc[i][0], test_profile.acc[i][1], test_profile.acc[i][2],
+        //                 test_profile.acc[i][3], test_profile.acc[i][4], test_profile.acc[i][5]);
+        // }
+
         bool ok = shield_->verify_trajectory(profile.pos, // q
                                             profile.vel, // qd
                                             profile.acc, // qdd
@@ -516,6 +593,8 @@ class SafetyShieldHardStopNodeRecover : public rclcpp::Node {
   }
 
   void onTimer() {
+      using clock = std::chrono::steady_clock;
+      auto cycle_time_start = clock::now();
       // wait for first human measurement
       if (human_measurement_.empty()) {
           RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
@@ -716,6 +795,11 @@ class SafetyShieldHardStopNodeRecover : public rclcpp::Node {
       safety_flag_msg_.data = shield_->getSafety();
       safety_flag_pub_->publish(safety_flag_msg_);
 
+      auto cycle_time_end = clock::now();
+      auto duration_cycle = std::chrono::duration_cast<std::chrono::microseconds>(cycle_time_end - cycle_time_start).count();
+      RCLCPP_INFO(this->get_logger(), 
+          "Cycle time: %ld μs (%.3f ms)",
+          duration_cycle, duration_cycle / 1000.0);
       // Publish human and robot capsules
       if (current_traj_.pos.size() < 2) {
           RCLCPP_WARN(this->get_logger(), "Stopping trajectory has less than 2 points, skipping capsule publishing.");
@@ -755,7 +839,7 @@ class SafetyShieldHardStopNodeRecover : public rclcpp::Node {
     int color_type)
   {
     visualization_msgs::msg::Marker m;
-    m.header.frame_id = "map";
+    m.header.frame_id = "world";
     m.header.stamp = this->get_clock()->now();
     m.ns = "capsules";
     m.id = id;
@@ -776,7 +860,7 @@ class SafetyShieldHardStopNodeRecover : public rclcpp::Node {
     int color_type)
   {
     visualization_msgs::msg::Marker m;
-    m.header.frame_id = "map";
+    m.header.frame_id = "world";
     m.header.stamp = this->get_clock()->now();
     m.ns = "capsules";
     m.id = id;
@@ -816,7 +900,7 @@ class SafetyShieldHardStopNodeRecover : public rclcpp::Node {
       default:
         m.color.r = m.color.g = m.color.b = 0.5f;
     }
-    m.color.a = 0.8f;
+    m.color.a = 0.3f;
   }
 
 

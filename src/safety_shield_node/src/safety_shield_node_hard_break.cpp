@@ -274,7 +274,7 @@ class SafetyShieldHardStopNode : public rclcpp::Node {
         auto verify_duration = std::chrono::duration_cast<std::chrono::microseconds>(
             verify_end_time - verify_start_time);
         
-        // Log timing information
+        //Log timing information
         RCLCPP_INFO(get_logger(), 
                   "verify_trajectory took: %ld μs (%.3f ms) for %zu samples", 
                   verify_duration.count(), 
@@ -359,6 +359,83 @@ class SafetyShieldHardStopNode : public rclcpp::Node {
 
     return true;
   }
+  
+    bool replanTrajectoryWithRuckig(const std::vector<double>& start_q,
+                                  const std::vector<double>& start_dq,
+                                  const std::vector<double>& start_ddq,
+                                  const std::vector<double>& goal_q,
+                                  const std::vector<double>& goal_dq,
+                                  const std::vector<double>& goal_ddq,
+                                  double sample_time,
+                                  Trajectory& traj) {
+    constexpr size_t DOF = 6;
+
+    std::array<double, DOF> q_arr{}, dq_arr{}, ddq_arr{};
+    std::array<double, DOF> goal_q_arr{}, goal_dq_arr{}, goal_ddq_arr{};
+
+    std::copy_n(start_q.begin(), DOF, q_arr.begin());
+    std::copy_n(start_dq.begin(), DOF, dq_arr.begin());
+    std::copy_n(start_ddq.begin(), DOF, ddq_arr.begin());
+    std::copy_n(goal_q.begin(), DOF, goal_q_arr.begin());
+    std::copy_n(goal_dq.begin(), DOF, goal_dq_arr.begin());
+    std::copy_n(goal_ddq.begin(), DOF, goal_ddq_arr.begin());
+
+    ruckig::Ruckig<DOF> otg(sample_time);
+    ruckig::InputParameter<DOF> in;
+
+    in.control_interface = ruckig::ControlInterface::Position;
+    in.synchronization   = ruckig::Synchronization::Time;
+
+    in.current_position     = q_arr;
+    in.current_velocity     = dq_arr;
+    in.current_acceleration = ddq_arr;
+
+    in.target_position      = goal_q_arr;
+    in.target_velocity      = goal_dq_arr;
+    in.target_acceleration  = goal_ddq_arr;
+
+    in.max_velocity.fill(1.0);
+    in.max_acceleration.fill(2.0);
+    in.max_jerk.fill(15.0);
+
+    ruckig::OutputParameter<DOF> out;
+    bool was_interrupted = false;
+
+    auto result = otg.calculate(in, out.trajectory, was_interrupted);
+
+    if (result != ruckig::Result::Working && result != ruckig::Result::Finished) {
+      return false;
+    }
+
+    if (out.trajectory.get_duration() <= 0.0) {
+      std::cerr << "[Ruckig] Trajectory duration invalid.\n";
+      return false;
+    }
+
+    const double T = out.trajectory.get_duration();
+    size_t num_samples = static_cast<size_t>(std::ceil(T / sample_time)) + 1;
+
+    traj.pos.resize(num_samples, std::vector<double>(DOF));
+    traj.vel.resize(num_samples, std::vector<double>(DOF));
+    traj.acc.resize(num_samples, std::vector<double>(DOF));
+
+    std::array<double, DOF> q{}, dq{}, ddq{};
+    size_t section = 0;
+
+    for (size_t k = 0; k < num_samples; ++k) {
+      double t = k * sample_time;
+      out.trajectory.at_time(t, q, dq, ddq, section);
+
+      for (size_t i = 0; i < DOF; ++i) {
+        traj.pos[k][i] = q[i];
+        traj.vel[k][i] = dq[i];
+        traj.acc[k][i] = ddq[i];
+      }
+    }
+
+    return true;
+  }
+  
   void humanMeasurementCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
     // Check if the incoming message is valid
     if (msg->data.size() % 3 != 0) {
@@ -412,12 +489,12 @@ class SafetyShieldHardStopNode : public rclcpp::Node {
         duration_us, ltt_.pos.size());
 
     // print goal
-    std::ostringstream oss_goal;
-    oss_goal << "planned goal: [";
-    for (size_t i = 0; i < msg->position.size(); ++i) {
-      oss_goal << msg->position[i] << (i+1<msg->position.size()? ", ": "]");
-    }
-    RCLCPP_INFO(this->get_logger(), "%s", oss_goal.str().c_str());
+    // std::ostringstream oss_goal;
+    // oss_goal << "planned goal: [";
+    // for (size_t i = 0; i < msg->position.size(); ++i) {
+    //   oss_goal << msg->position[i] << (i+1<msg->position.size()? ", ": "]");
+    // }
+    // RCLCPP_INFO(this->get_logger(), "%s", oss_goal.str().c_str());
 
     // RCLCPP_INFO(rclcpp::get_logger("PlanningRuckig"),
     //   "Ruckig trajectory planned successfully, steps: %zu, duration: %.3f seconds",
@@ -428,7 +505,7 @@ class SafetyShieldHardStopNode : public rclcpp::Node {
     has_new_goal_ = true;
     new_goal_ = msg->position;      // Update new goal
 
-    RCLCPP_INFO(this->get_logger(), "Trajectory planned successfully with Ruckig.");
+    // RCLCPP_INFO(this->get_logger(), "Trajectory planned successfully with Ruckig.");
   }
 
   void onTimer() {
@@ -621,7 +698,7 @@ class SafetyShieldHardStopNode : public rclcpp::Node {
     int color_type)
   {
     visualization_msgs::msg::Marker m;
-    m.header.frame_id = "map";
+    m.header.frame_id = "world";
     m.header.stamp = this->get_clock()->now();
     m.ns = "capsules";
     m.id = id;
@@ -642,7 +719,7 @@ class SafetyShieldHardStopNode : public rclcpp::Node {
     int color_type)
   {
     visualization_msgs::msg::Marker m;
-    m.header.frame_id = "map";
+    m.header.frame_id = "world";
     m.header.stamp = this->get_clock()->now();
     m.ns = "capsules";
     m.id = id;

@@ -15,7 +15,7 @@ def generate_launch_description():
     traj_cfg  = os.path.join(cfg_dir, 'trajectory_parameters_schunk.yaml')
     robot_cfg = os.path.join(cfg_dir, 'robot_parameters_schunk.yaml')
     mocap_cfg = os.path.join(cfg_dir, 'human_reach_TUM_lab.yaml')
-    params    = os.path.join(cfg_dir, 'safety_shield_params.yaml')
+    params    = os.path.join(cfg_dir, 'safety_shield_params_schunk.yaml')
 
     # --- the node itself ----------------------------------------------------
     shield_node = Node(
