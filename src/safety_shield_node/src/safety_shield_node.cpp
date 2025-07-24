@@ -179,6 +179,7 @@ private:
       init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_, init_qpos_,
       environment_elements_, shield_type_
     );
+    shield_->setNonPathConsistent();
   }
 
   void humanMeasurementCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
@@ -268,8 +269,48 @@ private:
 
     // Publish human and robot capsules
     publishCapsules(human_marker_pub_, shield_->getHumanReachCapsules(0), 2);
-    publishCapsules(robot_marker_pub_, shield_->getRobotReachCapsules(), 0);
+    publishTimedCapsules(robot_marker_pub_, shield_->getAllRobotReachCapsulesOverTime());
+    
   }
+  // void publishTimedCapsules(
+  //     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
+  //     const std::vector<std::vector<std::vector<double>>>& capsules_over_time)
+  // {
+    
+  //   for (size_t t = 0; t < capsules_over_time.size(); ++t) {
+  //     const auto& timestep_capsules = capsules_over_time[t];
+
+  //     // Use t as color_type or any logic you want
+  //     publishCapsules(pub, timestep_capsules, 0);
+  //   }
+  //   RCLCPP_INFO(
+  //     rclcpp::get_logger("SafetyShield"),
+  //     "Publishing %zu total robot capsules over %zu timesteps.",
+  //     capsules_over_time.size(),
+  //     capsules_over_time.size());
+  // }
+
+  void publishTimedCapsules(
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
+    const std::vector<std::vector<std::vector<double>>>& capsules_over_time)
+  {
+    if (capsules_over_time.empty() || capsules_over_time[0].empty()) {
+      RCLCPP_WARN(rclcpp::get_logger("SafetyShield"), "No capsule data to publish.");
+      return;
+    }
+
+    // Take the first capsule from the first timestep
+    std::vector<std::vector<double>> first_capsule_batch = capsules_over_time[0];
+
+    // Publish with any fixed color_type (e.g., 0 = robot)
+    publishCapsules(pub, first_capsule_batch, 0);
+
+    RCLCPP_INFO(
+      rclcpp::get_logger("SafetyShield"),
+      "Published first capsule (1 of %zu total in timestep 0).",
+      capsules_over_time[0].size());
+  }
+
   // Publishes reach capsules as MarkerArray via the given publisher
   void publishCapsules(
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
