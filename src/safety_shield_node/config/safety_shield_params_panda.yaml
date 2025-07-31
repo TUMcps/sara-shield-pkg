@@ -5,7 +5,7 @@ safety_shield_node:
     t_max: 10.0
 
     # Shield behavior
-    shield_type: "SSM"  # options: "PFL", "SSM", "OFF".
+    shield_type: "PFL"  # options: "PFL", "SSM", "OFF".
 
     # Initial robot pose
     init.pose.x:    0.0

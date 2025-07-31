@@ -9,6 +9,8 @@
 // include ros2 headers
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
+#include "trajectory_msgs/msg/joint_trajectory.hpp"
+#include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
@@ -158,6 +160,7 @@ private:
       "human_reach_markers", 10);
     robot_marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
       "robot_reach_markers", 10);
+    shield_mode_pub_ = this->create_publisher<std_msgs::msg::Bool>("current_shield_mode", 10);
   }
 
   void initializeSubscribers() {
@@ -169,6 +172,17 @@ private:
     goal_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "goal_joint_states", 10,
       std::bind(&SafetyShieldNode::goalCallback, this, std::placeholders::_1));
+    goal_trajectory_sub_ = this->create_subscription<trajectory_msgs::msg::JointTrajectory>(
+      "goal_trajectory_joint_states", 10,
+      std::bind(&SafetyShieldNode::goalTrajectoryCallback, this, std::placeholders::_1));
+    shield_mode_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+      "set_shield_mode", 10,
+      std::bind(&SafetyShieldNode::shieldModeCallback, this, std::placeholders::_1)
+    );
+    measured_joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
+      "joint_states", 10,
+      std::bind(&SafetyShieldNode::initialJointStateCallback, this, std::placeholders::_1)
+    );
   }
 
   void initializeShield() {
@@ -179,7 +193,22 @@ private:
       init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_, init_qpos_,
       environment_elements_, shield_type_
     );
-    shield_->setNonPathConsistent();
+    //shield_->setNonPathConsistent();
+  }
+
+  void initialJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg) {
+    if (is_initialized_) return;
+
+    if (msg->position.empty() || msg->position.size() != init_qpos_.size()) {
+      RCLCPP_WARN(this->get_logger(), "Joint state size mismatch or empty. Skipping initialization...");
+      return;
+    }
+
+    init_qpos_ = msg->position;
+    shield_->reset(init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_,
+                  init_qpos_, t_, environment_elements_, shield_type_);
+    is_initialized_ = true;
+    RCLCPP_INFO(this->get_logger(), "Shield initialized with current joint state.");
   }
 
   void humanMeasurementCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
@@ -222,6 +251,58 @@ private:
     has_new_goal_ = true;
   }
 
+  void goalTrajectoryCallback(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg) {
+    if (msg->points.empty()) {
+      RCLCPP_WARN(this->get_logger(), "Received empty trajectory");
+      return;
+    }
+
+    new_waypoints_.clear();
+
+    for (const auto& pt : msg->points) {
+      if (pt.positions.size() != joint_names_.size()) {
+        RCLCPP_WARN(this->get_logger(), "Mismatch in joint count in trajectory point");
+        return;
+      }
+      new_waypoints_.push_back(pt.positions);
+    }
+
+    has_new_trajectory_ = true;
+    RCLCPP_INFO(this->get_logger(), "Received joint-space trajectory with %zu points", new_waypoints_.size());
+  }
+
+  void shieldModeCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+    // Check if robot is at rest
+    std::vector<double> velocity = shield_->getCurrentMotion().getVelocity();
+    bool at_stop = std::all_of(velocity.begin(), velocity.end(), [](double v) {
+      return std::abs(v) < 1e-4;
+    });
+
+    if (!at_stop) {
+      RCLCPP_WARN(this->get_logger(), "Cannot change shield mode — robot is still moving.");
+      return;
+    }
+
+    // Use current joint angles as new initial qpos
+    // ToDO maybe adjust to current joint states
+    std::vector<double> current_qpos = shield_->getCurrentMotion().getAngle();
+
+    if (msg->data && !is_non_path_consistent_) {
+      shield_->setNonPathConsistent();
+      shield_->reset(init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_,
+                    current_qpos, t_, environment_elements_, shield_type_);
+      is_non_path_consistent_ = true;
+      RCLCPP_INFO(this->get_logger(), "Shield reset and set to NON-PATH-CONSISTENT mode (using current joint position)");
+    } else if (!msg->data && is_non_path_consistent_) {
+      shield_->reset(init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_,
+                    current_qpos, t_, environment_elements_, shield_type_);
+      is_non_path_consistent_ = false;
+      RCLCPP_INFO(this->get_logger(), "Shield reset and set to PATH-CONSISTENT mode (using current joint position)");
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Shield mode unchanged (already in requested mode)");
+    }
+  }
+
   void onTimer() {
     // wait for first human measurement
     if (human_measurement_.empty()) {
@@ -229,7 +310,11 @@ private:
         "Waiting for human measurements...");
       return;
     }
-
+    if (!is_initialized_) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+        "Waiting for initial joint state to initialize shield...");
+      return;
+    }
     t_ += sample_time_;
     if (t_ > t_max_) t_ = fmod(t_, t_max_);
 
@@ -243,6 +328,11 @@ private:
       std::vector<double> zero_vel(new_goal_.size(), 0.0);
       shield_->newLongTermTrajectory(new_goal_, zero_vel);
       has_new_goal_ = false;
+    }
+
+    if (has_new_trajectory_) {
+      shield_->newLongTermTrajectoryFromWaypoints(new_waypoints_);
+      has_new_trajectory_ = false;
     }
 
     // publish current joint states
@@ -270,7 +360,11 @@ private:
     // Publish human and robot capsules
     publishCapsules(human_marker_pub_, shield_->getHumanReachCapsules(0), 2);
     publishTimedCapsules(robot_marker_pub_, shield_->getAllRobotReachCapsulesOverTime());
-    
+
+    // Publish current shield mode
+    std_msgs::msg::Bool mode_msg;
+    mode_msg.data = is_non_path_consistent_;  // true = NON-PATH-CONSISTENT
+    shield_mode_pub_->publish(mode_msg);
   }
   // void publishTimedCapsules(
   //     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
@@ -305,10 +399,10 @@ private:
     // Publish with any fixed color_type (e.g., 0 = robot)
     publishCapsules(pub, first_capsule_batch, 0);
 
-    RCLCPP_INFO(
-      rclcpp::get_logger("SafetyShield"),
-      "Published first capsule (1 of %zu total in timestep 0).",
-      capsules_over_time[0].size());
+    // RCLCPP_INFO(
+    //   rclcpp::get_logger("SafetyShield"),
+    //   "Published first capsule (1 of %zu total in timestep 0).",
+    //   capsules_over_time[0].size());
   }
 
   // Publishes reach capsules as MarkerArray via the given publisher
@@ -416,8 +510,13 @@ private:
   double sample_time_{0.001}, t_{0.0}, t_max_{10.0};
   double init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_; 
   std::vector<double> init_qpos_, new_goal_;
+  std::vector<std::vector<double>> new_waypoints_;
+  bool has_new_trajectory_{false};
   bool has_new_goal_{false};
   bool has_new_measurement_{false};
+  bool is_non_path_consistent_{false};
+  bool is_initialized_{false};
+
   std::unique_ptr<safety_shield::SafetyShield> shield_;
   std::vector<reach_lib::AABB> environment_elements_;
   safety_shield::ShieldType shield_type_;
@@ -428,12 +527,17 @@ private:
   // Pointers for Subscriptions and Publishers
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr human_sub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr goal_sub_;
+  rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr goal_trajectory_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr measured_joint_state_sub_;
+
 
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr current_state_pub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr desired_joint_state_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr safety_flag_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr human_marker_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr robot_marker_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr shield_mode_pub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr shield_mode_sub_;
 
   rclcpp::TimerBase::SharedPtr timer_;
 };

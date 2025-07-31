@@ -1,3 +1,4 @@
+import yaml
 import os
 
 from launch import LaunchDescription
@@ -16,42 +17,54 @@ def generate_launch_description():
         FindPackageShare('safety_shield_node'),
         'urdf',
         'panda',
-        'panda_arm.urdf'
+        'panda.urdf'
     ])
 
     # Read URDF content via xacro
     robot_description_content = Command(['xacro ', urdf_file])
 
-    # Get package/share/config directories
+    # Get directories
     pkg_share = get_package_share_directory('safety_shield_node')
+    ik_pkg_share = get_package_share_directory('movit_panda_ik')
     cfg_dir = os.path.join(pkg_share, 'config')
     rviz_dir = os.path.join(pkg_share, 'rviz')
+
+    # IK config
+    srdf_file = os.path.join(ik_pkg_share, 'config', 'panda.srdf')
+    kinematics_file = os.path.join(ik_pkg_share, 'config', 'kinematics.yaml')
+    with open(srdf_file, 'r') as infp:
+        srdf_content = infp.read()
+    with open(kinematics_file, 'r') as f:
+        kin_yaml = yaml.safe_load(f)
+    kinematics_params = kin_yaml['cartesian_to_joint_node']['ros__parameters']
 
     # Config files
     traj_cfg = os.path.join(cfg_dir, 'trajectory_parameters_panda.yaml')
     robot_cfg = os.path.join(cfg_dir, 'robot_parameters_panda.yaml')
     mocap_cfg = os.path.join(cfg_dir, 'human_reach_TUM_lab.yaml')
     params = os.path.join(cfg_dir, 'safety_shield_params_panda.yaml')
-    rviz_cfg = os.path.join(rviz_dir, 'panda.rviz')
+    rviz_cfg = os.path.join(rviz_dir, 'panda_ik.rviz')
 
-    # Launch arguments
     return LaunchDescription([
 
-        # Use GUI for joint_state_publisher
+        # --- Launch Args ---
         DeclareLaunchArgument(
             name='use_gui',
             default_value='true',
-            description='Flag to enable joint_state_publisher_gui'
+            description='Enable joint_state_publisher_gui'
         ),
-
-        # Select which safety node executable to use
         DeclareLaunchArgument(
             name='safety_node_exec',
             default_value='safety_shield_node',
-            description='Executable for safety shield node (e.g., safety_shield_node or safety_shield_node_hard_break_recover)'
+            description='Which safety node executable to run'
+        ),
+        DeclareLaunchArgument(
+            name='enable_ik_node',
+            default_value='true',
+            description='Whether to launch the IK node'
         ),
 
-        # Robot State Publisher
+        # --- Robot State Publisher ---
         Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -66,25 +79,23 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # Joint State Publisher GUI
-        Node(
-            condition=IfCondition(LaunchConfiguration('use_gui')),
-            package='joint_state_publisher_gui',
-            executable='joint_state_publisher_gui',
-            name='joint_state_publisher_gui',
-            output='screen'
-        ),
+        # --- Joint State Publishers ---
+        # Node(
+        #     condition=IfCondition(LaunchConfiguration('use_gui')),
+        #     package='joint_state_publisher_gui',
+        #     executable='joint_state_publisher_gui',
+        #     name='joint_state_publisher_gui',
+        #     output='screen'
+        # ),
+        # Node(
+        #     condition=UnlessCondition(LaunchConfiguration('use_gui')),
+        #     package='joint_state_publisher',
+        #     executable='joint_state_publisher',
+        #     name='joint_state_publisher',
+        #     output='screen'
+        # ),
 
-        # Joint State Publisher (headless)
-        Node(
-            condition=UnlessCondition(LaunchConfiguration('use_gui')),
-            package='joint_state_publisher',
-            executable='joint_state_publisher',
-            name='joint_state_publisher',
-            output='screen'
-        ),
-
-        # Safety Shield Node (customizable executable and name)
+        # --- Safety Shield Node ---
         Node(
             package='safety_shield_node',
             executable=LaunchConfiguration('safety_node_exec'),
@@ -100,15 +111,27 @@ def generate_launch_description():
             ],
         ),
 
-        # RViz2
+        # --- IK Node (conditional) ---
+        Node(
+            condition=IfCondition(LaunchConfiguration('enable_ik_node')),
+            package='movit_panda_ik',
+            executable='cartesian_to_joint_node',
+            name='cartesian_to_joint_node',
+            output='screen',
+            parameters=[
+                {'robot_description': robot_description_content},
+                {'robot_description_semantic': srdf_content},
+                {'robot_description_kinematics': kinematics_params}
+            ]
+        ),
+
+        # --- RViz ---
         Node(
             package='rviz2',
             executable='rviz2',
             name='rviz2',
             arguments=['-d', rviz_cfg],
             output='screen',
-            parameters=[{
-                'use_sim_time': False
-            }]
-        ),
+            parameters=[{'use_sim_time': False}]
+        )
     ])

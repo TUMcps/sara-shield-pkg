@@ -9,8 +9,6 @@
 
   <!-- Build tool -->
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <build_depend>ruckig</build_depend>
-  <exec_depend>ruckig</exec_depend>
 
   <!-- Core dependencies -->
   <depend>rclcpp</depend>
@@ -21,6 +19,7 @@
   <!-- For the new publishers/subscribers -->
   <depend>visualization_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>trajectory_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>

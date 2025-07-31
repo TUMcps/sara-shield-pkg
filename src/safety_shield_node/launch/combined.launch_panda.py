@@ -1,3 +1,4 @@
+import yaml
 import os
 
 from launch import LaunchDescription
@@ -15,8 +16,8 @@ def generate_launch_description():
     urdf_file = PathJoinSubstitution([
         FindPackageShare('safety_shield_node'),
         'urdf',
-        'robco',
-        'demo_robot.urdf'
+        'panda',
+        'panda.urdf'
     ])
 
     # Read URDF content via xacro
@@ -28,11 +29,11 @@ def generate_launch_description():
     rviz_dir = os.path.join(pkg_share, 'rviz')
 
     # Config files
-    traj_cfg = os.path.join(cfg_dir, 'trajectory_parameters_robco.yaml')
-    robot_cfg = os.path.join(cfg_dir, 'robot_parameters_robco.yaml')
+    traj_cfg = os.path.join(cfg_dir, 'trajectory_parameters_panda.yaml')
+    robot_cfg = os.path.join(cfg_dir, 'robot_parameters_panda.yaml')
     mocap_cfg = os.path.join(cfg_dir, 'human_reach_TUM_lab.yaml')
-    params = os.path.join(cfg_dir, 'safety_shield_params_robco.yaml')
-    rviz_cfg = os.path.join(rviz_dir, 'robco.rviz')
+    params = os.path.join(cfg_dir, 'safety_shield_params_panda.yaml')
+    rviz_cfg = os.path.join(rviz_dir, 'panda.rviz')
 
     # Launch arguments
     return LaunchDescription([
