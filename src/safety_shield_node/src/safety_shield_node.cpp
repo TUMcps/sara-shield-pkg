@@ -26,7 +26,6 @@ class SafetyShieldNode : public rclcpp::Node {
 public:
   SafetyShieldNode()
   : Node("safety_shield_node"),
-    sample_time_(0.001),
     t_(0.0),
     t_max_(10.0)
   {
@@ -47,6 +46,11 @@ public:
 
 private:
   void declareParameters() {
+    // system parameters
+    // if the robot position should be synced to real system upon start
+    this->declare_parameter<bool>("sync_robot_position", false);
+    this->declare_parameter<double>("sample_time", 0.001);
+
     // Declare Safety Shield parameters
     this->declare_parameter<std::string>("trajectory_config");
     this->declare_parameter<std::string>("robot_config");
@@ -69,6 +73,22 @@ private:
   }
 
   void loadParameters() {
+    // Load system parameters
+    robot_state_synchronized_ = true;
+    bool sync_robot_position = false;
+    // Try to get parameter; if missing, keep default true
+    if (this->get_parameter("sync_robot_position", sync_robot_position)) {
+      // If parameter exists, robot_state_synchronized_ is opposite of sync_robot_position
+      robot_state_synchronized_ = !sync_robot_position;
+    } else {
+      // Parameter missing: warn and keep robot_state_synchronized_ = true
+      RCLCPP_WARN(this->get_logger(), "Parameter 'sync_robot_position' not set. Using default 'true' for robot_state_synchronized_");
+    }
+
+    if (!this->get_parameter("sample_time", sample_time_)) {
+      RCLCPP_WARN(this->get_logger(), "Parameter 'sample_time' not set. Using default 0.001.");
+      sample_time_ = 0.001;
+    }
     // Load Safety Shield parameters
     this->get_parameter("trajectory_config", trajectory_config_file_);
     this->get_parameter("robot_config",     robot_config_file_);
@@ -197,18 +217,44 @@ private:
   }
 
   void initialJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg) {
-    if (is_initialized_) return;
+    if (robot_state_synchronized_) return;
 
-    if (msg->position.empty() || msg->position.size() != init_qpos_.size()) {
-      RCLCPP_WARN(this->get_logger(), "Joint state size mismatch or empty. Skipping initialization...");
+    if (msg->position.empty()) {
+      RCLCPP_WARN(this->get_logger(), "Received empty joint state. Skipping initialization...");
       return;
     }
 
-    init_qpos_ = msg->position;
+    // Map from joint name to index in incoming message
+    std::unordered_map<std::string, size_t> joint_index_map;
+    for (size_t i = 0; i < msg->name.size(); ++i) {
+      joint_index_map[msg->name[i]] = i;
+    }
+
+    // Resize init_qpos_ to expected size (arm joints count)
+    init_qpos_.resize(joint_names_.size());
+
+    // Extract only positions for joints in joint_names_ - avoid gripper
+    for (size_t i = 0; i < joint_names_.size(); ++i) {
+      const auto &joint_name = joint_names_[i];
+      auto it = joint_index_map.find(joint_name);
+      if (it != joint_index_map.end()) {
+        size_t idx = it->second;
+        if (idx < msg->position.size()) {
+          init_qpos_[i] = msg->position[idx];
+        } else {
+          RCLCPP_WARN(this->get_logger(), "Position index %zu out of bounds for joint '%s'", idx, joint_name.c_str());
+          init_qpos_[i] = 0.0;
+        }
+      } else {
+        RCLCPP_WARN(this->get_logger(), "Joint '%s' not found in joint_states", joint_name.c_str());
+        init_qpos_[i] = 0.0;
+      }
+    }
+
     shield_->reset(init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_,
                   init_qpos_, t_, environment_elements_, shield_type_);
-    is_initialized_ = true;
-    RCLCPP_INFO(this->get_logger(), "Shield initialized with current joint state.");
+    robot_state_synchronized_ = true;
+    RCLCPP_INFO(this->get_logger(), "Shield initialized with filtered joint state.");
   }
 
   void humanMeasurementCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
@@ -310,7 +356,7 @@ private:
         "Waiting for human measurements...");
       return;
     }
-    if (!is_initialized_) {
+    if (!robot_state_synchronized_) {
       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
         "Waiting for initial joint state to initialize shield...");
       return;
@@ -507,7 +553,8 @@ private:
   std_msgs::msg::Bool safety_flag_msg_;
 
   // Node components
-  double sample_time_{0.001}, t_{0.0}, t_max_{10.0};
+  double t_{0.0}, t_max_{10.0};
+  double sample_time_;
   double init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_; 
   std::vector<double> init_qpos_, new_goal_;
   std::vector<std::vector<double>> new_waypoints_;
@@ -515,7 +562,7 @@ private:
   bool has_new_goal_{false};
   bool has_new_measurement_{false};
   bool is_non_path_consistent_{false};
-  bool is_initialized_{false};
+  bool robot_state_synchronized_;
 
   std::unique_ptr<safety_shield::SafetyShield> shield_;
   std::vector<reach_lib::AABB> environment_elements_;

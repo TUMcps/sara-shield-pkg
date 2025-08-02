@@ -1,9 +1,9 @@
 #include <rclcpp/rclcpp.hpp>
-#include <moveit/move_group_interface/move_group_interface.hpp>
-#include <moveit/planning_scene_interface/planning_scene_interface.hpp>
-#include <moveit/robot_model_loader/robot_model_loader.hpp>
-#include <moveit/robot_model/robot_model.hpp>
-#include <moveit/robot_state/robot_state.hpp>
+#include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
+#include <moveit/robot_model_loader/robot_model_loader.h>        
+#include <moveit/robot_model/robot_model.h>                      
+#include <moveit/robot_state/robot_state.h>                     
 #include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
@@ -206,25 +206,6 @@ private:
 
         return true;
     }
-
-    // void simulateJointTrajectory(const trajectory_msgs::msg::JointTrajectory& traj)
-    // {
-    //     rclcpp::Rate rate(100);
-    //     for (const auto& point : traj.points)
-    //     {
-    //         rclcpp::Time start_time = this->now();
-    //         rclcpp::Duration segment_time = rclcpp::Duration::from_seconds(0.1);
-    //         while ((this->now() - start_time) < segment_time)
-    //         {
-    //             sensor_msgs::msg::JointState js;
-    //             js.header.stamp = this->now();
-    //             js.name = traj.joint_names;
-    //             js.position = point.positions;
-    //             joint_state_pub_->publish(js);
-    //             rate.sleep();
-    //         }
-    //     }
-    // }
 };
 
 int main(int argc, char** argv)

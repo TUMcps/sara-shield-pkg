@@ -1,11 +1,11 @@
 safety_shield_node:
   ros__parameters:
     # Timing
-    sample_time: 0.001
+    sample_time: 0.002
     t_max: 10.0
 
     # Shield behavior
-    shield_type: "PFL"  # options: "PFL", "SSM", "OFF".
+    shield_type: "SSM"  # options: "PFL", "SSM", "OFF".
 
     # Initial robot pose
     init.pose.x:    0.0
