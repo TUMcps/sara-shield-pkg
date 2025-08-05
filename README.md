@@ -40,7 +40,7 @@ Next, create a new ROS 2 workspace and clone in your `safety_demo` package.
 
 2. Clone your `safety_demo` package:
    ```bash
-   git clone -b dev_waypoints git@gitlab.lrz.de:jballetshofer/safety_demo.git
+   git clone -b dev_waypoints_humble git@gitlab.lrz.de:jballetshofer/safety_demo.git
    cd safety_demo
    ```   
 3. add prefix to the installed lib
