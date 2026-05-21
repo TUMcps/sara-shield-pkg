@@ -9,15 +9,10 @@ The `sara_shield` library must be built and installed into `/opt/safety_shield` 
 1. Open a terminal.
 2. Clone the repository into a separate location:
    ```bash
-   git clone --recurse-submodules -b safety_shield_PACS git@gitlab.lrz.de:cps-robotics/sara-shield.git
+   git clone --recurse-submodules git@gitlab.lrz.de:cps-robotics/sara-shield.git
    cd sara_shield
    ```
-3. The next step requires access to ruckig pro to enable the option of creating trajectories from waypoints.
-   ```bash
-   cd safety_shield/external
-   ```
-   Install the ruckig pro library.
-4. Build the safety shield.
+3. Build the safety shield.
    ```bash
    cd ../ && mkdir build && cd build
    export EIGEN3_INCLUDE_DIR="/usr/include/eigen3/eigen-3.4.0"
@@ -26,6 +21,8 @@ The `sara_shield` library must be built and installed into `/opt/safety_shield` 
    sudo make install
    ```
 > **Note:** You can change `/opt/safety_shield` to any other prefix, but you must export `CMAKE_PREFIX_PATH` accordingly in step 3 of the ROS workspace setup.
+
+Alternative use our Docker.
 
 ---
 
@@ -90,11 +87,6 @@ ros2 run human_motion_tracker human_motion_tracker
 
 ```bash
 ros2 run simple_goal_publisher simple_goal_publisher
-```
-## Running dummy waypoints for panda.
-
-```bash
-ros2 run simple_goal_publisher waypoint_publisher
 ```
 
 ## This will send a goal pose as an example.
