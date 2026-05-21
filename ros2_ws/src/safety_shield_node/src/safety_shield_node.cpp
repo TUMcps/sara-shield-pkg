@@ -191,9 +191,6 @@ private:
     goal_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "goal_joint_states", 10,
       std::bind(&SafetyShieldNode::goalCallback, this, std::placeholders::_1));
-    goal_trajectory_sub_ = this->create_subscription<trajectory_msgs::msg::JointTrajectory>(
-      "goal_trajectory_joint_states", 10,
-      std::bind(&SafetyShieldNode::goalTrajectoryCallback, this, std::placeholders::_1));
     measured_joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "joint_states", 10,
       std::bind(&SafetyShieldNode::initialJointStateCallback, this, std::placeholders::_1)

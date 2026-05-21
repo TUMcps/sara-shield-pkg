@@ -27,7 +27,6 @@ This project provides a Docker-based ROS 2 Humble development environment.
 Remove the cached Docker volumes:
 
 ```bash
-docker volume rm safety_demo_build_safety_shield
 docker volume rm safety_demo_safety_shield_install
 ```
 

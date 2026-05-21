@@ -29,6 +29,7 @@ get_filename_component(_LIB_DIR   "${_CMAKE_DIR}"     PATH)
 get_filename_component(_PREFIX    "${_LIB_DIR}"       PATH)
 
 set(SHIELD_INCLUDE_DIR    "${_PREFIX}/include")
+set(LTP_INCLUDE_DIR       "${_PREFIX}/include/long_term_planner")
 set(SARA_INCLUDE_DIR      "${_PREFIX}/include/SaRA")
 
 # --- Executable ---
