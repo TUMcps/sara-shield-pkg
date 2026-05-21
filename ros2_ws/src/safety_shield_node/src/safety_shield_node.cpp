@@ -392,26 +392,6 @@ private:
     has_new_goal_ = true;
   }
 
-  void goalTrajectoryCallback(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg) {
-    if (msg->points.empty()) {
-      RCLCPP_WARN(this->get_logger(), "Received empty trajectory");
-      return;
-    }
-
-    new_waypoints_.clear();
-
-    for (const auto& pt : msg->points) {
-      if (pt.positions.size() != joint_names_.size()) {
-        RCLCPP_WARN(this->get_logger(), "Mismatch in joint count in trajectory point");
-        return;
-      }
-      new_waypoints_.push_back(pt.positions);
-    }
-
-    has_new_trajectory_ = true;
-    RCLCPP_INFO(this->get_logger(), "Received joint-space trajectory with %zu points", new_waypoints_.size());
-  }
-
   void onTimer() {
     // wait for first human measurement
     if (human_measurement_.empty()) {
@@ -437,11 +417,6 @@ private:
       std::vector<double> zero_vel(new_goal_.size(), 0.0);
       shield_->newLongTermTrajectory(new_goal_, zero_vel);
       has_new_goal_ = false;
-    }
-
-    if (has_new_trajectory_) {
-      shield_->newLongTermTrajectoryFromWaypoints(new_waypoints_);
-      has_new_trajectory_ = false;
     }
 
     // publish current joint states
@@ -482,7 +457,6 @@ private:
   double sample_time_;
   double init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_; 
   std::vector<double> init_qpos_, new_goal_;
-  std::vector<std::vector<double>> new_waypoints_;
   bool has_new_trajectory_{false};
   bool has_new_goal_{false};
   bool has_new_measurement_{false};
