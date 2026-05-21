@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# Launch a command (or interactive shell) inside the safety_demo dev container.
+#
+# Usage:
+#   ./docker/run                                      # open interactive shell
+#   ./docker/run colcon build                         # run a command directly
+#   ./docker/run -w /workspace/ros2_ws colcon build   # with custom workdir
+
+usage_and_exit() {
+    echo "Safety Demo dev tools — run command in Docker container" >&2
+    echo "" >&2
+    echo "Usage: $0 [-h] [-v VOLUME:BINDING] [-w WORKDIR] [-r DOCKER_ARG] [COMMAND]" >&2
+    echo "" >&2
+    echo "  -h            Show this help" >&2
+    echo "  -v            Override mounted volume (default: repo root -> /workspace)" >&2
+    echo "  -w            Override working directory inside container" >&2
+    echo "                Default: mirrors your current directory inside /workspace" >&2
+    echo "  -r ARG        Pass extra docker run arguments (repeatable)" >&2
+    echo "" >&2
+    echo "  Examples:" >&2
+    echo "    $0                                       # interactive shell" >&2
+    echo "    $0 colcon build                          # build ROS workspace" >&2
+    echo "    $0 -w /workspace/ros2_ws colcon build    # build from ros2_ws" >&2
+    exit "$1"
+}
+
+set -e
+
+# =======================================================================================
+# Repository paths
+# =======================================================================================
+REPO_PATH=$(git rev-parse --show-toplevel)
+REPO_NAME=$(basename "$REPO_PATH")
+REPO_CUR_DIR=$(git rev-parse --show-prefix)
+
+# Mount repo root to /workspace inside the container
+VOLUME="$REPO_PATH:/workspace"
+WORKDIR="/workspace/$REPO_CUR_DIR"
+
+ADDED_DOCKER_RUN_ARGS=()
+
+# =======================================================================================
+# Parse arguments
+# =======================================================================================
+while getopts ":v:w:r:h" opt; do
+    case $opt in
+        v)
+            VOLUME="$OPTARG"
+            ;;
+        w)
+            WORKDIR="$OPTARG"
+            ;;
+        r)
+            ADDED_DOCKER_RUN_ARGS+=("$OPTARG")
+            ;;
+        h)
+            usage_and_exit 0
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            usage_and_exit 1
+            ;;
+    esac
+
+    case $OPTARG in
+        -*)
+            echo "Option -$opt requires an argument" >&2
+            usage_and_exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND - 1))
+
+# Command to execute inside container
+if [[ $# -eq 0 ]]; then
+    COMMAND=(bash -l)
+else
+    COMMAND=("$@")
+fi
+
+# =======================================================================================
+# Container lifecycle
+# =======================================================================================
+CONTAINER_NAME="safety-demo-container-waypoints"
+
+# If already running, attach to it.
+if [ "$(docker ps -a --quiet --filter status=running --filter name="$CONTAINER_NAME")" ]; then
+    echo "Container '$CONTAINER_NAME' already running — attaching..."
+    docker exec -it \
+        -e ROS_DOMAIN_ID=37 \
+        "$CONTAINER_NAME" \
+        "${COMMAND[@]}"
+    exit 0
+fi
+
+# Remove old exited container with same name.
+if [ "$(docker ps -a --quiet --filter status=exited --filter name="$CONTAINER_NAME")" ]; then
+    docker rm "$CONTAINER_NAME" > /dev/null
+fi
+
+# =======================================================================================
+# Docker run flags
+# =======================================================================================
+
+# Interactive shell; container is removed after exit.
+INTERACTIVELY=(
+    --interactive
+    --rm
+)
+
+# Run as current host user (avoids root-owned build artifacts in the repo).
+AS_LOCAL_USER=(
+    --user sara
+    --env HOME=/home/sara
+)
+# Container name.
+WITH_NAME=(
+    --name "$CONTAINER_NAME"
+)
+
+# Host networking and system integration (matches your working Garmi setup).
+WITH_FULL_ACCESS=(
+    --privileged
+    --tty
+    --network=host
+    --ipc=host
+    --pid=host
+    --env "DISPLAY=$DISPLAY"
+)
+
+# X11 support.
+WITH_X11=(
+    --volume /tmp/.X11-unix:/tmp/.X11-unix
+)
+
+# Repository mounted to /workspace.
+WITH_REPO=(
+    --volume="$VOLUME"
+    --workdir="$WORKDIR"
+)
+
+# Optional access to the host home directory.
+WITH_HOME=(
+    --volume="$HOME:/host"
+)
+
+# Access to devices.
+WITH_DEV=(
+    --volume="/dev:/dev"
+)
+
+# Persistent Docker volume for installed sara-shield files.
+WITH_SHIELD_INSTALL=(
+    --volume="${REPO_NAME}_safety_shield_install:/opt/safety_shield"
+)
+
+# Persistent Docker volume for sara-shield build directory.
+WITH_SHIELD_BUILD=(
+    --volume="${REPO_NAME}_safety_shield_build:/docker_build/safety_shield"
+)
+
+# ROS configuration.
+# Only set ROS_DOMAIN_ID, just like your working setup.
+WITH_ROS_CONFIG=(
+    --env ROS_DOMAIN_ID=37
+)
+
+# Realtime scheduling support.
+WITH_REALTIME_LIMITS=(
+    --ulimit rtprio=99
+    --ulimit rttime=-1
+    --ulimit memlock=8428281856
+    --cap-add=sys_nice
+)
+
+# =======================================================================================
+# Launch container
+# =======================================================================================
+docker run \
+    "${INTERACTIVELY[@]}" \
+    "${AS_LOCAL_USER[@]}" \
+    "${WITH_NAME[@]}" \
+    "${WITH_FULL_ACCESS[@]}" \
+    "${WITH_X11[@]}" \
+    "${WITH_REPO[@]}" \
+    "${WITH_HOME[@]}" \
+    "${WITH_DEV[@]}" \
+    "${WITH_SHIELD_INSTALL[@]}" \
+    "${WITH_SHIELD_BUILD[@]}" \
+    "${WITH_ROS_CONFIG[@]}" \
+    "${WITH_REALTIME_LIMITS[@]}" \
+    "${ADDED_DOCKER_RUN_ARGS[@]}" \
+    "sara/build-env:$REPO_NAME" \
+    "${COMMAND[@]}"

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+./docker/run bash -lc '
+cd /docker_build/safety_shield &&
+cmake /workspace/external/sara-shield/safety_shield \
+  -DCMAKE_INSTALL_PREFIX=/opt/safety_shield \
+  -DCMAKE_BUILD_TYPE=Release &&
+make -j$(nproc) &&
+make install
+'

@@ -1,73 +1,97 @@
-# ─────────── common build args ─────────────────────────────────────────────
-ARG distro=jazzy       
-ARG ubuntu=24.04
+ARG ROS_DISTRO=humble
+FROM ros:${ROS_DISTRO}
 
-# ─────────── build stage ───────────────────────────────────────────────────
-FROM ros:${distro}-ros-base  AS builder
-ARG distro
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HOME=/home/sara
+SHELL ["/bin/bash", "-c"]
 
-# tools & headers needed to build everything
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        ros-${distro}-rviz2 \
-        build-essential git openssh-client cmake libeigen3-dev \
-        python3-colcon-common-extensions python3-rosdep \
+# =======================================================================================
+# User setup
+# =======================================================================================
+RUN apt-get update && apt-get install -y sudo && \
+    useradd --uid 1000 --create-home --shell /bin/bash sara && \
+    echo 'sara:sara123' | chpasswd && \
+    adduser sara sudo && \
+    chown -R sara:sara /home/sara && \
+    rm -rf /var/lib/apt/lists/*
+
+# =======================================================================================
+# Base dependencies
+# =======================================================================================
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    gnupg \
+    lsb-release \
+    python3-pip \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    build-essential \
+    cmake \
+    wget \
+    libfmt-dev \
+    libeigen3-dev \
+    ros-${ROS_DISTRO}-rclcpp \
+    ros-${ROS_DISTRO}-std-msgs \
+    ros-${ROS_DISTRO}-geometry-msgs \
+    ros-${ROS_DISTRO}-sensor-msgs \
+    ros-${ROS_DISTRO}-trajectory-msgs \
+    ros-${ROS_DISTRO}-visualization-msgs \
+    ros-${ROS_DISTRO}-tf2 \
+    ros-${ROS_DISTRO}-tf2-ros \
+    ros-${ROS_DISTRO}-tf2-geometry-msgs \
+    ros-${ROS_DISTRO}-ament-index-cpp \
+    ros-${ROS_DISTRO}-rviz2 \
+    ros-${ROS_DISTRO}-teleop-twist-keyboard \
+    ros-${ROS_DISTRO}-joint-state-publisher \
+    ros-${ROS_DISTRO}-joint-state-publisher-gui \
+    ros-${ROS_DISTRO}-robot-state-publisher \
+    ros-${ROS_DISTRO}-demo-nodes-cpp \
+    ros-${ROS_DISTRO}-demo-nodes-py \
     && rm -rf /var/lib/apt/lists/*
 
-# rosdep cache (already initialised on Humble / Iron / Jazzy)
-RUN if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then \
-        rosdep init; fi && rosdep update
+# =======================================================================================
+# Eigen 3.4.0 — exact version required by sara-shield
+# =======================================================================================
+RUN mkdir -p /usr/include/eigen3 && \
+    wget -q https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz \
+        -O /tmp/eigen.tar.gz && \
+    tar -xzf /tmp/eigen.tar.gz -C /usr/include/eigen3/ && \
+    rm /tmp/eigen.tar.gz
+
+# =======================================================================================
+# Environment
+# =======================================================================================
+ENV EIGEN3_INCLUDE_DIR=/usr/include/eigen3/eigen-3.4.0
+ENV LD_LIBRARY_PATH=/opt/safety_shield/lib
+ENV CMAKE_PREFIX_PATH=/opt/safety_shield
+ENV ROS_DOMAIN_ID=37
+
+# Persistent Docker volumes will be mounted here by docker/run.
+RUN mkdir -p /opt/safety_shield /docker_build/safety_shield && \
+    chmod -R 777 /opt/safety_shield /docker_build && \
+    chown -R sara:sara /opt/safety_shield /docker_build
+
+# =======================================================================================
+# rosdep
+# =======================================================================================
+RUN rosdep init 2>/dev/null || true && rosdep update || true
+
+# =======================================================================================
+# Shell setup
+# =======================================================================================
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/sara/.bashrc && \
+    echo "export EIGEN3_INCLUDE_DIR=/usr/include/eigen3/eigen-3.4.0" >> /home/sara/.bashrc && \
+    echo "export LD_LIBRARY_PATH=/opt/safety_shield/lib:\$LD_LIBRARY_PATH" >> /home/sara/.bashrc && \
+    echo "export CMAKE_PREFIX_PATH=/opt/safety_shield:\$CMAKE_PREFIX_PATH" >> /home/sara/.bashrc && \
+    echo "export ROS_DOMAIN_ID=37" >> /home/sara/.bashrc && \
+    echo '[[ -f /workspace/ros2_ws/install/setup.bash ]] && source /workspace/ros2_ws/install/setup.bash' >> /home/sara/.bashrc && \
+    chown sara:sara /home/sara/.bashrc
 
 WORKDIR /workspace
 
-# ─── build & install sara_shield (+ submodules) ────────────────────────────
-ARG SARA_SHIELD_BRANCH=sara_shield_ros_cmake_updates
-RUN --mount=type=ssh \
-    mkdir -p /root/.ssh && chmod 0700 /root/.ssh && \
-    ssh-keyscan -H gitlab.lrz.de >> /root/.ssh/known_hosts && \
-    git clone --recurse-submodules -b ${SARA_SHIELD_BRANCH} \
-        git@gitlab.lrz.de:cps-robotics/sara-shield.git /tmp/sara && \
-    mkdir -p /tmp/sara/safety_shield/build && \
-    cd       /tmp/sara/safety_shield/build && \
-    export EIGEN3_INCLUDE_DIR=/usr/include/eigen3 && \
-    cmake .. \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/safety_shield \
-        -DEIGEN3_INCLUDE_DIR=${EIGEN3_INCLUDE_DIR} && \
-    make -j$(nproc) && make install && \
-    rm -rf /tmp/sara
+RUN mkdir -p /home/sara/.ros/log && \
+    chown -R sara:sara /home/sara/.ros
+USER sara
 
-# make those artefacts visible to colcon later
-ENV CMAKE_PREFIX_PATH=/opt/safety_shield:${CMAKE_PREFIX_PATH}
-ENV LD_LIBRARY_PATH=/opt/safety_shield/lib:${LD_LIBRARY_PATH}
-
-# ─── build your ROS 2 workspace ────────────────────────────────────────────
-COPY src/ src/
-RUN . /opt/ros/${distro}/setup.sh && \
-    rosdep install --from-paths src --ignore-src -r -y && \
-    colcon build --merge-install 
-
-# ─────────── runtime stage ────────────────────────────────────────────────
-### ─── runtime stage ─────────────────────────────────────────────
-FROM ros:${distro}-ros-base
-ARG distro 
-# Install tini ➊ and rviz2 ➋ in a single layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        tini \                             
-        ros-${distro}-rviz2 \ 
-        ros-${distro}-rmw-cyclonedds-cpp \             
-    && rm -rf /var/lib/apt/lists/*         
-
-# copy artefacts produced in the build stage
-COPY --from=builder /workspace/install /workspace/install
-COPY --from=builder /opt/safety_shield    /opt/safety_shield
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENV CMAKE_PREFIX_PATH=/opt/safety_shield:${CMAKE_PREFIX_PATH}
-ENV LD_LIBRARY_PATH=/opt/safety_shield/lib:${LD_LIBRARY_PATH}
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-
-WORKDIR /workspace
-ENTRYPOINT ["/usr/bin/tini","--","/entrypoint.sh"]
-CMD ["bash"]
-
+CMD ["bash", "-l"]

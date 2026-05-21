@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -e
+
+DOCKER_CLEAN=false
+if [[ "$1" == "--clean" ]]; then
+    DOCKER_CLEAN=true
+    shift
+fi
+
+REPO_PATH="$(git rev-parse --show-toplevel)"
+REPO_NAME="$(basename "$REPO_PATH")"
+DOCKERFILE="$REPO_PATH/docker/Dockerfile"
+cd "$REPO_PATH"
+
+highlight_echo() {
+    printf "==> ✓ %s\n\n" "$1"
+}
+
+echo "Setting up development environment for: $REPO_NAME"
+echo ""
+
+# =======================================================================================
+# pre-commit hooks
+# =======================================================================================
+if ! command -v pre-commit >/dev/null; then
+    echo "Installing pre-commit..."
+    pip3 install pre-commit --break-system-packages 2>/dev/null || pip3 install pre-commit
+else
+    echo "Refreshing pre-commit..."
+    pre-commit clean
+fi
+
+# Install hook, but allow repositories without .pre-commit-config.yaml
+highlight_echo "$(pre-commit install --overwrite --allow-missing-config)"
+
+# Update submodules automatically after checkout or merge
+HOOK="$REPO_PATH/.git/hooks/post-checkout"
+echo -e "#!/bin/sh\ngit submodule update --init --recursive" > "$HOOK"
+chmod +x "$HOOK"
+cp "$REPO_PATH/.git/hooks/post-"{checkout,merge}
+
+highlight_echo "Submodule hooks installed"
+# =======================================================================================
+# Docker
+# =======================================================================================
+if ! command -v docker >/dev/null; then
+    echo "Installing docker..."
+    sudo apt install -y docker.io
+    sudo groupadd docker || true
+    sudo usermod -aG docker "$USER"
+    newgrp docker
+fi
+highlight_echo "docker is installed"
+
+if [[ ! -f "$DOCKERFILE" ]]; then
+    echo "Dockerfile not found at $DOCKERFILE — aborting."
+    exit 1
+fi
+
+# =======================================================================================
+# Build Docker image
+# =======================================================================================
+echo "Building Docker image sara/build-env:$REPO_NAME ..."
+
+if $DOCKER_CLEAN; then
+    echo "Pruning Docker system first (--clean flag)..."
+    docker system prune --force
+fi
+
+docker build -f "$DOCKERFILE" -t "sara/build-env:$REPO_NAME" "$REPO_PATH"
+
+echo ""
+highlight_echo "You are ready for development in $REPO_NAME!"
+echo "  Next steps:"
+echo "    1. Run './docker/run' to open a shell in the container"
+echo "  Next steps:"
+echo "    1. Run './docker/run' to open a shell in the container"
+echo "    2. Build sara-shield once:"
+echo "         ./docker/run bash -lc 'cd /docker_build/safety_shield && cmake /workspace/external/sara-shield/safety_shield -DCMAKE_INSTALL_PREFIX=/opt/safety_shield -DCMAKE_BUILD_TYPE=Release && make -j\$(nproc) && make install'"
+echo "    3. Build your ROS workspace:"
+echo "         ./docker/run -w /workspace/ros2_ws colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release"

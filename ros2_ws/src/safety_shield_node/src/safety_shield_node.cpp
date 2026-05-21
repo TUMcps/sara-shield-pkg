@@ -65,8 +65,8 @@ private:
     this->declare_parameter<std::vector<double>>("init.qpos", std::vector<double>());
     
     // Environment elements
-    this->declare_parameter<std::vector<double>>("table.min", {-1.0, -1.0, -0.1});
-    this->declare_parameter<std::vector<double>>("table.max", {1.0, 1.0, 0.0});
+    this->declare_parameter<std::vector<double>>("environment.table.min", {-1.0, -1.0, -0.1});
+    this->declare_parameter<std::vector<double>>("environment.table.max", {1.0, 1.0, 0.0});
     
     // Timeout for human measurements
     this->declare_parameter<double>("human_measurement_timeout", 2.0);
@@ -124,8 +124,8 @@ private:
 
     // Load environment elements
     std::vector<double> table_min, table_max;
-    this->get_parameter("table.min", table_min);
-    this->get_parameter("table.max", table_max);
+    this->get_parameter("environment.table.min", table_min);
+    this->get_parameter("environment.table.max", table_max);
     
     if (table_min.size() != 3 || table_max.size() != 3) {
       throw std::runtime_error("Table bounds must have 3 dimensions");
@@ -180,7 +180,6 @@ private:
       "human_reach_markers", 10);
     robot_marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
       "robot_reach_markers", 10);
-    shield_mode_pub_ = this->create_publisher<std_msgs::msg::Bool>("current_shield_mode", 10);
   }
 
   void initializeSubscribers() {
@@ -195,10 +194,6 @@ private:
     goal_trajectory_sub_ = this->create_subscription<trajectory_msgs::msg::JointTrajectory>(
       "goal_trajectory_joint_states", 10,
       std::bind(&SafetyShieldNode::goalTrajectoryCallback, this, std::placeholders::_1));
-    shield_mode_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-      "set_shield_mode", 10,
-      std::bind(&SafetyShieldNode::shieldModeCallback, this, std::placeholders::_1)
-    );
     measured_joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "joint_states", 10,
       std::bind(&SafetyShieldNode::initialJointStateCallback, this, std::placeholders::_1)
@@ -214,6 +209,106 @@ private:
       environment_elements_, shield_type_
     );
     //shield_->setNonPathConsistent();
+  }
+
+  void publishTimedCapsules(rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
+                            const std::vector<std::vector<std::vector<double>>>& capsules_over_time) {
+    if (capsules_over_time.empty() || capsules_over_time[0].empty()) {
+      RCLCPP_WARN(rclcpp::get_logger("SafetyShield"), "No capsule data to publish.");
+      return;
+    }
+
+    // Take the first capsule from the first timestep
+    std::vector<std::vector<double>> first_capsule_batch = capsules_over_time[0];
+
+    // Publish with any fixed color_type (e.g., 0 = robot)
+    publishCapsules(pub, first_capsule_batch, 0);
+  }
+
+  // Publishes reach capsules as MarkerArray via the given publisher
+  void publishCapsules(rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
+                       const std::vector<std::vector<double>>& caps, int color_type) {
+                       static visualization_msgs::msg::MarkerArray arr;
+    arr.markers.clear();
+
+    size_t id = 0;
+    for (const auto &c : caps) {
+      // Create two spheres at capsule endpoints
+      auto sphere1 = makeSphere(c[0], c[1], c[2], c[6], id++, color_type);
+      auto sphere2 = makeSphere(c[3], c[4], c[5], c[6], id++, color_type);
+      // Create cylinder between endpoints
+      auto cylinder = makeCylinder(c, id++, color_type);
+      arr.markers.push_back(sphere1);
+      arr.markers.push_back(sphere2);
+      arr.markers.push_back(cylinder);
+    }
+    pub->publish(arr);
+  }
+
+  // Helper to construct a sphere marker
+  visualization_msgs::msg::Marker makeSphere(double x, double y, double z,
+                                             double radius, size_t id, int color_type) {
+    visualization_msgs::msg::Marker m;
+    m.header.frame_id = "world";
+    m.header.stamp = this->get_clock()->now();
+    m.ns = "capsules";
+    m.id = id;
+    m.type = visualization_msgs::msg::Marker::SPHERE;
+    m.pose.position.x = x;
+    m.pose.position.y = y;
+    m.pose.position.z = z;
+    m.scale.x = 2.0 * radius;
+    m.scale.y = 2.0 * radius;
+    m.scale.z = 2.0 * radius;
+    setColor(m, color_type);
+    return m;
+  }
+
+  // Helper to construct a cylinder marker between two points
+  visualization_msgs::msg::Marker makeCylinder(const std::vector<double>& c, size_t id, int color_type) {
+    visualization_msgs::msg::Marker m;
+    m.header.frame_id = "world";
+    m.header.stamp = this->get_clock()->now();
+    m.ns = "capsules";
+    m.id = id;
+    m.type = visualization_msgs::msg::Marker::CYLINDER;
+    // Midpoint
+    m.pose.position.x = (c[0] + c[3]) / 2.0;
+    m.pose.position.y = (c[1] + c[4]) / 2.0;
+    m.pose.position.z = (c[2] + c[5]) / 2.0;
+    // Orientation: align cylinder along vector from p1 to p2
+    Eigen::Vector3d v(c[3] - c[0], c[4] - c[1], c[5] - c[2]);
+    double L = v.norm();
+    if (L > 1e-6) {
+      Eigen::Vector3d axis = Eigen::Vector3d::UnitZ().cross(v);
+      axis.normalize();
+      double angle = std::acos(v.dot(Eigen::Vector3d::UnitZ()) / L);
+      m.pose.orientation.x = axis.x() * std::sin(angle / 2.0);
+      m.pose.orientation.y = axis.y() * std::sin(angle / 2.0);
+      m.pose.orientation.z = axis.z() * std::sin(angle / 2.0);
+      m.pose.orientation.w = std::cos(angle / 2.0);
+      m.scale.z = L;
+    }
+    m.scale.x = 2.0 * c[6];
+    m.scale.y = 2.0 * c[6];
+    setColor(m, color_type);
+    return m;
+  }
+
+  // Helper to set marker color based on type
+  void setColor(visualization_msgs::msg::Marker &m, int type) const {
+    m.color.r = m.color.g = m.color.b = 0.0f; 
+    switch(type) {
+      case 0: // robot reach
+        m.color.g = 1.0f;
+        break;
+      case 2: // human reach
+        m.color.r = 1.0f;
+        break;
+      default:
+        m.color.r = m.color.g = m.color.b = 0.5f;
+    }
+    m.color.a = 0.3f;
   }
 
   void initialJointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg) {
@@ -317,38 +412,6 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received joint-space trajectory with %zu points", new_waypoints_.size());
   }
 
-  void shieldModeCallback(const std_msgs::msg::Bool::SharedPtr msg) {
-    // Check if robot is at rest
-    std::vector<double> velocity = shield_->getCurrentMotion().getVelocity();
-    bool at_stop = std::all_of(velocity.begin(), velocity.end(), [](double v) {
-      return std::abs(v) < 1e-4;
-    });
-
-    if (!at_stop) {
-      RCLCPP_WARN(this->get_logger(), "Cannot change shield mode — robot is still moving.");
-      return;
-    }
-
-    // Use current joint angles as new initial qpos
-    // ToDO maybe adjust to current joint states
-    std::vector<double> current_qpos = shield_->getCurrentMotion().getAngle();
-
-    if (msg->data && !is_non_path_consistent_) {
-      shield_->setNonPathConsistent();
-      shield_->reset(init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_,
-                    current_qpos, t_, environment_elements_, shield_type_);
-      is_non_path_consistent_ = true;
-      RCLCPP_INFO(this->get_logger(), "Shield reset and set to NON-PATH-CONSISTENT mode (using current joint position)");
-    } else if (!msg->data && is_non_path_consistent_) {
-      shield_->reset(init_x_, init_y_, init_z_, init_roll_, init_pitch_, init_yaw_,
-                    current_qpos, t_, environment_elements_, shield_type_);
-      is_non_path_consistent_ = false;
-      RCLCPP_INFO(this->get_logger(), "Shield reset and set to PATH-CONSISTENT mode (using current joint position)");
-    } else {
-      RCLCPP_INFO(this->get_logger(), "Shield mode unchanged (already in requested mode)");
-    }
-  }
-
   void onTimer() {
     // wait for first human measurement
     if (human_measurement_.empty()) {
@@ -407,144 +470,6 @@ private:
     publishCapsules(human_marker_pub_, shield_->getHumanReachCapsules(0), 2);
     publishTimedCapsules(robot_marker_pub_, shield_->getAllRobotReachCapsulesOverTime());
 
-    // Publish current shield mode
-    std_msgs::msg::Bool mode_msg;
-    mode_msg.data = is_non_path_consistent_;  // true = NON-PATH-CONSISTENT
-    shield_mode_pub_->publish(mode_msg);
-  }
-  // void publishTimedCapsules(
-  //     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
-  //     const std::vector<std::vector<std::vector<double>>>& capsules_over_time)
-  // {
-    
-  //   for (size_t t = 0; t < capsules_over_time.size(); ++t) {
-  //     const auto& timestep_capsules = capsules_over_time[t];
-
-  //     // Use t as color_type or any logic you want
-  //     publishCapsules(pub, timestep_capsules, 0);
-  //   }
-  //   RCLCPP_INFO(
-  //     rclcpp::get_logger("SafetyShield"),
-  //     "Publishing %zu total robot capsules over %zu timesteps.",
-  //     capsules_over_time.size(),
-  //     capsules_over_time.size());
-  // }
-
-  void publishTimedCapsules(
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
-    const std::vector<std::vector<std::vector<double>>>& capsules_over_time)
-  {
-    if (capsules_over_time.empty() || capsules_over_time[0].empty()) {
-      RCLCPP_WARN(rclcpp::get_logger("SafetyShield"), "No capsule data to publish.");
-      return;
-    }
-
-    // Take the first capsule from the first timestep
-    std::vector<std::vector<double>> first_capsule_batch = capsules_over_time[0];
-
-    // Publish with any fixed color_type (e.g., 0 = robot)
-    publishCapsules(pub, first_capsule_batch, 0);
-
-    // RCLCPP_INFO(
-    //   rclcpp::get_logger("SafetyShield"),
-    //   "Published first capsule (1 of %zu total in timestep 0).",
-    //   capsules_over_time[0].size());
-  }
-
-  // Publishes reach capsules as MarkerArray via the given publisher
-  void publishCapsules(
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub,
-    const std::vector<std::vector<double>>& caps,
-    int color_type)
-  {
-    static visualization_msgs::msg::MarkerArray arr;
-    arr.markers.clear();
-
-    size_t id = 0;
-    for (const auto &c : caps) {
-      // Create two spheres at capsule endpoints
-      auto sphere1 = makeSphere(c[0], c[1], c[2], c[6], id++, color_type);
-      auto sphere2 = makeSphere(c[3], c[4], c[5], c[6], id++, color_type);
-      // Create cylinder between endpoints
-      auto cylinder = makeCylinder(c, id++, color_type);
-      arr.markers.push_back(sphere1);
-      arr.markers.push_back(sphere2);
-      arr.markers.push_back(cylinder);
-    }
-    pub->publish(arr);
-  }
-
-  // Helper to construct a sphere marker
-  visualization_msgs::msg::Marker makeSphere(
-    double x, double y, double z,
-    double radius,
-    size_t id,
-    int color_type)
-  {
-    visualization_msgs::msg::Marker m;
-    m.header.frame_id = "world";
-    m.header.stamp = this->get_clock()->now();
-    m.ns = "capsules";
-    m.id = id;
-    m.type = visualization_msgs::msg::Marker::SPHERE;
-    m.pose.position.x = x;
-    m.pose.position.y = y;
-    m.pose.position.z = z;
-    m.scale.x = 2.0 * radius;
-    m.scale.y = 2.0 * radius;
-    m.scale.z = 2.0 * radius;
-    setColor(m, color_type);
-    return m;
-  }
-  // Helper to construct a cylinder marker between two points
-  visualization_msgs::msg::Marker makeCylinder(
-    const std::vector<double>& c,
-    size_t id,
-    int color_type)
-  {
-    visualization_msgs::msg::Marker m;
-    m.header.frame_id = "world";
-    m.header.stamp = this->get_clock()->now();
-    m.ns = "capsules";
-    m.id = id;
-    m.type = visualization_msgs::msg::Marker::CYLINDER;
-    // Midpoint
-    m.pose.position.x = (c[0] + c[3]) / 2.0;
-    m.pose.position.y = (c[1] + c[4]) / 2.0;
-    m.pose.position.z = (c[2] + c[5]) / 2.0;
-    // Orientation: align cylinder along vector from p1 to p2
-    Eigen::Vector3d v(c[3] - c[0], c[4] - c[1], c[5] - c[2]);
-    double L = v.norm();
-    if (L > 1e-6) {
-      Eigen::Vector3d axis = Eigen::Vector3d::UnitZ().cross(v);
-      axis.normalize();
-      double angle = std::acos(v.dot(Eigen::Vector3d::UnitZ()) / L);
-      m.pose.orientation.x = axis.x() * std::sin(angle / 2.0);
-      m.pose.orientation.y = axis.y() * std::sin(angle / 2.0);
-      m.pose.orientation.z = axis.z() * std::sin(angle / 2.0);
-      m.pose.orientation.w = std::cos(angle / 2.0);
-      m.scale.z = L;
-    }
-    m.scale.x = 2.0 * c[6];
-    m.scale.y = 2.0 * c[6];
-    setColor(m, color_type);
-    return m;
-  }
-
-  // Helper to set marker color based on type
-  void setColor(visualization_msgs::msg::Marker &m, int type) const {
-    m.color.r = m.color.g = m.color.b = 0.0f; 
-    switch(type) {
-      case 0: // robot reach
-        m.color.g = 1.0f;
-        break;
-      case 2: // human reach
-        m.color.r = 1.0f;
-        break;
-      default:
-        m.color.r = m.color.g = m.color.b = 0.5f;
-    }
-    m.color.a = 0.3f;
   }
 
   // Preallocated messages
@@ -561,7 +486,6 @@ private:
   bool has_new_trajectory_{false};
   bool has_new_goal_{false};
   bool has_new_measurement_{false};
-  bool is_non_path_consistent_{false};
   bool robot_state_synchronized_;
 
   std::unique_ptr<safety_shield::SafetyShield> shield_;
@@ -584,7 +508,6 @@ private:
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr human_marker_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr robot_marker_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr shield_mode_pub_;
-  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr shield_mode_sub_;
 
   rclcpp::TimerBase::SharedPtr timer_;
 };
