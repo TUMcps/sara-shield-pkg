@@ -9,7 +9,7 @@ The `sara_shield` library must be built and installed into `/opt/safety_shield` 
 1. Open a terminal.
 2. Clone the repository into a separate location:
    ```bash
-   git clone --recurse-submodules -b dev_julian_waypoints git@gitlab.lrz.de:cps-robotics/sara-shield.git
+   git clone --recurse-submodules -b safety_shield_PACS git@gitlab.lrz.de:cps-robotics/sara-shield.git
    cd sara_shield
    ```
 3. The next step requires access to ruckig pro to enable the option of creating trajectories from waypoints.
@@ -40,7 +40,7 @@ Next, create a new ROS 2 workspace and clone in your `safety_demo` package.
 
 2. Clone your `safety_demo` package:
    ```bash
-   git clone -b dev_waypoints_humble git@gitlab.lrz.de:jballetshofer/safety_demo.git
+   git clone -b safety_shield_PACS git@gitlab.lrz.de:jballetshofer/safety_demo.git
    cd safety_demo
    ```   
 3. add prefix to the installed lib
@@ -81,10 +81,6 @@ ros2 launch safety_shield_node combined.launch.py robot_name:=<robot_name> sync_
   - If `true`, the robot initializes its position from the current joint states received on the `/joint_states` topic.  
   - If `false`, the robot initializes with the init_q values specified in the `safety_shield_params` configuration file.
 
-- use_ik (bool)  
-  - Enables the inverse kinematics (IK) node.  
-  - Currently **only supported for the `panda` robot**.  
-
 ## Running dummy human measurement data.
 
 ```bash
@@ -95,6 +91,12 @@ ros2 run human_motion_tracker human_motion_tracker
 ```bash
 ros2 run simple_goal_publisher simple_goal_publisher
 ```
+## Running dummy waypoints for panda.
+
+```bash
+ros2 run simple_goal_publisher waypoint_publisher
+```
+
 ## This will send a goal pose as an example.
 
 ```bash

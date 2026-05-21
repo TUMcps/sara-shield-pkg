@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Find Dependencies ---
+find_package(yaml-cpp REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -61,6 +62,7 @@ target_link_libraries(${PROJECT_NAME}
   Eigen3::Eigen
   Threads::Threads
   fmt::fmt
+  yaml-cpp
 )
 
 # --- Install targets ---

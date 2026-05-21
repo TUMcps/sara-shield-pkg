@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     wget \
+    gdb \
     libfmt-dev \
     libeigen3-dev \
     ros-${ROS_DISTRO}-rclcpp \
@@ -42,7 +43,7 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-tf2-geometry-msgs \
     ros-${ROS_DISTRO}-ament-index-cpp \
     ros-${ROS_DISTRO}-rviz2 \
-    ros-${ROS_DISTRO}-teleop-twist-keyboard \
+    ros-${ROS_DISTRO}-xacro \
     ros-${ROS_DISTRO}-joint-state-publisher \
     ros-${ROS_DISTRO}-joint-state-publisher-gui \
     ros-${ROS_DISTRO}-robot-state-publisher \

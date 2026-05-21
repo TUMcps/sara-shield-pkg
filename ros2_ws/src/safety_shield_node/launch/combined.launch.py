@@ -14,12 +14,9 @@ def launch_setup(context, *args, **kwargs):
     safety_node_exec = LaunchConfiguration('safety_node_exec').perform(context)
     sync_robot_position_str = LaunchConfiguration('sync_robot_position').perform(context)
     sync_robot_position = (sync_robot_position_str.lower() == 'true')
-    use_ik_str = LaunchConfiguration('use_ik').perform(context)
-    use_ik = (use_ik_str.lower() == 'true')
 
     # Get package/share directories
     pkg_share = get_package_share_directory('safety_shield_node')
-    ik_pkg_share = get_package_share_directory('movit_panda_ik')
 
     # Build file paths dynamically with robot-specific filenames
     urdf_file = os.path.join(pkg_share, 'urdf', robot_name, f'{robot_name}.urdf')
@@ -33,25 +30,10 @@ def launch_setup(context, *args, **kwargs):
     mocap_cfg = os.path.join(pkg_share, 'config', 'human_reach_TUM_lab.yaml')
 
     # Select RViz config based on use_ik and robot_name
-    if use_ik and robot_name == 'panda':
-        rviz_cfg = os.path.join(pkg_share, 'rviz', 'panda_ik.rviz')
-    else:
-        rviz_cfg = os.path.join(pkg_share, 'rviz', f'{robot_name}.rviz')
+    rviz_cfg = os.path.join(pkg_share, 'rviz', f'{robot_name}.rviz')
 
     # Read URDF content via xacro
     robot_description_content = Command(['xacro ', urdf_file])
-
-    # IK config (only needed if use_ik)
-    srdf_content = ''
-    kinematics_params = {}
-    if use_ik:
-        srdf_file = os.path.join(ik_pkg_share, 'config', 'panda.srdf')
-        kinematics_file = os.path.join(ik_pkg_share, 'config', 'kinematics.yaml')
-        with open(srdf_file, 'r') as infp:
-            srdf_content = infp.read()
-        with open(kinematics_file, 'r') as f:
-            kin_yaml = yaml.safe_load(f)
-        kinematics_params = kin_yaml['cartesian_to_joint_node']['ros__parameters']
 
     # Prepare nodes list
     nodes = [
@@ -100,22 +82,6 @@ def launch_setup(context, *args, **kwargs):
             }]
         )
     ]
-
-    # Optionally add IK node
-    if use_ik:
-        ik_node = Node(
-            package='movit_panda_ik',
-            executable='cartesian_to_joint_node',
-            name='cartesian_to_joint_node',
-            output='screen',
-            parameters=[
-                {'robot_description': robot_description_content},
-                {'robot_description_semantic': srdf_content},
-                {'robot_description_kinematics': kinematics_params}
-            ]
-        )
-        nodes.append(ik_node)
-
     return nodes
 
 
@@ -144,17 +110,11 @@ def generate_launch_description():
         description='Executable for safety shield node'
     )
 
-    use_ik_arg = DeclareLaunchArgument(
-        name='use_ik',
-        default_value='true',
-        description='Whether to launch the IK node'
-    )
     
     return LaunchDescription([
         robot_name_arg,
         use_gui_arg,
         safety_node_exec_arg,
         sync_robot_position_arg,
-        use_ik_arg,
         OpaqueFunction(function=launch_setup)
     ])
