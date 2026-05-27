@@ -1,4 +1,4 @@
 [submodule "external/sara-shield"]
 	path = external/sara-shield
-	url = git@gitlab.lrz.de:cps-robotics/sara-shield.git
+	url = git@github.com:TUMcps/sara-shield.git
 	branch = main
